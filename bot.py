@@ -23,6 +23,7 @@ def geting_login_data():
 
 
 def authorization(browser, email, password):
+    """Авторизация и выбор неиммиграционной визы"""
     browser.get('https://cgifederal.secure.force.com/')
     sleep(3)
     element_id_or_name_part = 'loginPage:SiteTemplate:siteLogin:loginComponent:loginForm:'
@@ -41,13 +42,39 @@ def authorization(browser, email, password):
         if 'Captcha.' not in error_text:
             login_data = geting_login_data()
         browser = authorization(browser, **login_data)
+    browser.find_elements(By.TAG_NAME, 'a')[2].click()  # Новое обращение / Запись на собеседование
+    browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:j_id176').click()  # Выбор неиммиграционной визы (по умолчанию)
+    return browser
+
+
+def city_selection(browser):
+    """Выбор города"""
+    # Выбор города можно упростить, если не считывать список городов с сайта, а выдавать их списком.
+    # Но тогда в случае изменения списка городов или их порядка, нужно будут вносить изменения в бота вручную.
+    # Во втором случае запрос города можно будет вынести к запросам мыла и пароля.
+    tr_elements = browser.find_elements(By.TAG_NAME, 'tr')
+    cities = {i: tr_elements[i].text for i in range(len(tr_elements))}
+    city_ind_in_cities = False
+    city_ind = ''
+    input_text_part_1 = 'Введите номер города, в котором хотите пройти собеседование:\n'
+    input_text_part_2 = '\n'.join([f'{ind} - {name}' for ind, name in cities.items()]) + '\n'
+    while not city_ind_in_cities:
+        city_ind = int(input(f'{input_text_part_1}{input_text_part_2}'))
+        if city_ind in cities:
+            city_ind_in_cities = True
+    tr_elements[city_ind].find_element(By.TAG_NAME, 'input').click()
+    sleep(5)
+    browser.find_element(By.NAME, 'j_id0:SiteTemplate:j_id112:j_id169').click()
     return browser
 
 
 if __name__ == '__main__':
     browser = starting_browser()
     browser = authorization(browser, **geting_login_data())
-    browser.find_elements(By.TAG_NAME, 'a')[2].click()  # Новое обращение / Запись на собеседование
+    browser = city_selection(browser)
     sleep(15)
     with open(f'{FILE_PATH}page.txt', 'w', encoding="utf-8") as file:
         file.write(browser.page_source)
+
+
+# Делать ли паузы между переходами на страницы?
