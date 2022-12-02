@@ -9,6 +9,9 @@ from selenium.webdriver.common.by import By
 load_dotenv(find_dotenv())
 
 RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
+CGIFEDERAL_EMAIL = os.getenv('CGIFEDERAL_EMAIL')
+CGIFEDERAL_PASSWORD = os.getenv('CGIFEDERAL_PASSWORD')
+RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
 FILE_PATH = 'C:/Users/inoze/Downloads/'  # Путь для сохранения файлов
 
 
@@ -20,11 +23,17 @@ def starting_browser():
 
 
 def geting_login_data():
-    login_input_text = {
-        'email': 'Введите адрес электронной почты: \n',
-        'password': 'Введите пароль: \n'
-    }
-    login_data = {key: input(value) for key, value in login_input_text.items()}
+    if CGIFEDERAL_EMAIL and CGIFEDERAL_PASSWORD:
+        login_data = {
+            'email': CGIFEDERAL_EMAIL,
+            'password': CGIFEDERAL_PASSWORD
+        }
+    else:
+        login_input_text = {
+            'email': 'Введите адрес электронной почты: \n',
+            'password': 'Введите пароль: \n'
+        }
+        login_data = {key: input(value) for key, value in login_input_text.items()}
     return login_data
 
 
