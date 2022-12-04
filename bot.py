@@ -8,34 +8,29 @@ from selenium.webdriver.common.by import By
 
 load_dotenv(find_dotenv())
 
-CGIFEDERAL_EMAIL = os.getenv('CGIFEDERAL_EMAIL')
-CGIFEDERAL_PASSWORD = os.getenv('CGIFEDERAL_PASSWORD')
 RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
 FILE_PATH = 'C:/Users/inoze/Downloads/'  # Путь для сохранения файлов
 
 
 def starting_browser():
     options = webdriver.ChromeOptions()
-    options.add_argument("start-maximized")
+    # TODO: в конце - проверить работу в безоконном режиме (headless)
+    options.add_argument("window-size=800,600")
     browser = webdriver.Chrome(options=options)
     return browser
 
 
-def geting_login_data():
-    if CGIFEDERAL_EMAIL and CGIFEDERAL_PASSWORD:
-        login_data = {
-            'email': CGIFEDERAL_EMAIL,
-            'password': CGIFEDERAL_PASSWORD
-        }
-    else:
-        login_input_text = {
-            'email': 'Введите адрес электронной почты: \n',
-            'password': 'Введите пароль: \n'
-        }
-        login_data = {key: input(value) for key, value in login_input_text.items()}
-    return login_data
+def prepare_login_data(answers: dict) -> dict:
+    required_params = {
+        'email': 'Введите адрес электронной почты: \n',
+        'password': 'Введите пароль: \n'
+    }
+    return {key: answers.get(key) or input(value) for key, value in required_params.items()}
 
 
+# TODO: добавить везде аннотации типов
+# TODO 2: на вход получать картинку в памяти и разгадывать ее с помощью rucaptcha
+#  без сохранения в файл
 def reading_captcha():
     """Разгадывание капчи"""
     captcha = ''
@@ -63,20 +58,31 @@ def authorization(browser, email, password):
     browser.find_element(By.ID, f'{element_id_or_name_part}password').send_keys(password)
     browser.find_element(By.NAME, f'{element_id_or_name_part}j_id167').click()
     sleep(10)  # Вместо паузы сделать выполнение следующей функции только после загрузки капчи
+    # TODO: скриншот не производительно делать, нужно найти элемент img и в нем забрать ссылку
+    #  эта ссылка - по сути закодированное изображение в (base64) - его в памяти (!)
+    #  сохраняем и отправляем уже в сервис рекапчи
+    #  еще минус скриншота - в докере селениум будет в безоконном режиме
+    #  и там ловить капчу будет сложно :)
     browser.find_element(By.ID, f'{element_id_or_name_part}theId').screenshot(f'{FILE_PATH}screenie.png')
     sleep(10)  # browser.find_element(By.ID, f'{element_id_or_name_part}recaptcha_response_field').send_keys(reading_captcha())
     browser.find_element(By.ID, f'{element_id_or_name_part}loginButton').click()
     error_id_part = 'error:j_id132:j_id133:0:j_id134:j_id135:j_id137'
     if error_id_part in browser.page_source:
+        # TODO: если обнаружена ошибка, то прекращать на этом работу и текст ошибки возвращать
+        #  при этом ответ должен быть промаркирован - он успешный или была ошибка
         error_text = browser.find_element(By.ID, f'{element_id_or_name_part}{error_id_part}').text
         print(error_text)
         login_data = {'email': email, 'password': password}
         if 'Captcha.' not in error_text:
-            login_data = geting_login_data()
+            login_data = prepare_login_data({})
         browser = authorization(browser, **login_data)
     return browser
 
 
+# TODO: все функции на вход принимают answers, чтобы использовать значения из него
+#  если значение не найдено - тогда спрашиваем у пользователя
+#  при этом все ответы запоминаем и при возврате результата (успешного или с ошибками)
+#  возвращаем актуальный словарь ответов
 def city_selection(browser):
     """Выбор города"""
     tr_elements = browser.find_elements(By.TAG_NAME, 'tr')
@@ -153,8 +159,29 @@ def visa_class_selection(browser):
 
 
 if __name__ == '__main__':
+    # TODO: сделать функцию, которая на вход принимает словарь с параметрами (ответами)
+    #  примеры такого словаря:
+
+    # пустой словарь - первый запуск еще никаких ответов система не запомнила
+    # answers = {}
+
+    # частичная информация, в таком случае вопросы будут только там, где нет ответов
+    # answers = {
+    #     'email': 'my.email@gmail.com',
+    #     'password': 'the-best-password',
+    # }
+
+    # полная информация, все должно в автоматическом режиме пройти
+    answers = {
+        'email': os.getenv('CGIFEDERAL_EMAIL'),
+        'password': os.getenv('CGIFEDERAL_PASSWORD'),
+        'city': os.getenv('CGIFEDERAL_CITY'),
+        'visa_category': os.getenv('CGIFEDERAL_VISA_CATEGORY'),
+        'visa_class': os.getenv('CGIFEDERAL_VISA_CLASS'),
+    }
+
     browser = starting_browser()
-    browser = authorization(browser, **geting_login_data())
+    browser = authorization(browser, **prepare_login_data(answers))
     browser.find_elements(By.TAG_NAME, 'a')[2].click()  # Новое обращение / Запись на собеседование
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:j_id176').click()  # Выбор неиммиграционной визы (по умолчанию)
     browser = city_selection(browser)
@@ -162,9 +189,8 @@ if __name__ == '__main__':
     browser = visa_class_selection(browser)
     browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id1279').click()  # Персональные данные введены
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:j_id856:continueBtn').click()  # Члены семьи добавлены в список
-    browser.find_element(By.NAME, 'j_id0:SiteTemplate:j_id856:continueBtn').click()  # Члены семьи добавлены в список
     sleep(15)
+    # TODO: успех - это созданная запись + доступные окна для записи
+    #  (то есть надо распарсить последнюю страницу)
     with open(f'{FILE_PATH}page.txt', 'w', encoding="utf-8") as file:
         file.write(browser.page_source)
-
-# Делать ли паузы между переходами на страницы, чтобы не сразу бросаться в глаза как бот?
