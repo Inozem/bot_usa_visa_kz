@@ -8,7 +8,6 @@ from selenium.webdriver.common.by import By
 
 load_dotenv(find_dotenv())
 
-RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
 CGIFEDERAL_EMAIL = os.getenv('CGIFEDERAL_EMAIL')
 CGIFEDERAL_PASSWORD = os.getenv('CGIFEDERAL_PASSWORD')
 RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
@@ -65,7 +64,7 @@ def authorization(browser, email, password):
     browser.find_element(By.NAME, f'{element_id_or_name_part}j_id167').click()
     sleep(10)  # Вместо паузы сделать выполнение следующей функции только после загрузки капчи
     browser.find_element(By.ID, f'{element_id_or_name_part}theId').screenshot(f'{FILE_PATH}screenie.png')
-    browser.find_element(By.ID, f'{element_id_or_name_part}recaptcha_response_field').send_keys(reading_captcha())
+    sleep(10)  # browser.find_element(By.ID, f'{element_id_or_name_part}recaptcha_response_field').send_keys(reading_captcha())
     browser.find_element(By.ID, f'{element_id_or_name_part}loginButton').click()
     error_id_part = 'error:j_id132:j_id133:0:j_id134:j_id135:j_id137'
     if error_id_part in browser.page_source:
@@ -104,14 +103,22 @@ def visa_category_selection(browser):
     visa_ind = ''
     input_text_part_1 = 'Выберите номер визовой категории:\n'
     input_text_part_2 = '\n'.join([f'{ind} - {type}' for ind, type in visa_categories.items()]) + '\n'
+    visa_category_supported = [
+        'Виза B1/B2 (туризм, посещение родственников, деловые поездки и не срочное медицинское лечение)',
+        'Визы для студентов и участников программ обмена (первичные обращения и обращения без прохождения личного собеседования)',
+        'Визы для студентов и участников программ обмена (которым ранее было отказано в визе)'
+    ]
     while not visa_ind_in_visa_categories:
         visa_ind = int(input(f'{input_text_part_1}{input_text_part_2}'))
-        if visa_ind in visa_categories:
+        if visa_categories[visa_ind] in visa_category_supported:
             visa_ind_in_visa_categories = True
+        else:
+            print('Мы не работаем с данной категорией виз')
     tr_elements[visa_ind].find_element(By.TAG_NAME, 'input').click()
+    category = visa_categories[visa_ind]
     sleep(5)
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:j_id109:j_id166').click()
-    return browser
+    return browser, category
 
 
 def visa_class_selection(browser):
@@ -123,14 +130,26 @@ def visa_class_selection(browser):
     visa_ind = ''
     input_text_part_1 = 'Выберите номер визового класса:\n'
     input_text_part_2 = '\n'.join([f'{ind} - {type}' for ind, type in visa_classes.items()]) + '\n'
+    visa_class_supported = [
+        'B1 - Виза для деловых поездок',
+        'B1/B2 - Виза для деловых и туристических поездок',
+        'B2 - Виза для туристических поездок и лечения',
+        'F-1 - Студенческая виза для академических или языковых программ обучения',
+        'F-2 - Виза для супруга(и)/ребенка держателя визы F-1',
+    ]
     while not visa_ind_in_visa_classes:
         visa_ind = int(input(f'{input_text_part_1}{input_text_part_2}'))
-        if visa_ind in visa_classes:
+        if visa_classes[visa_ind] in visa_class_supported:
             visa_ind_in_visa_classes = True
+        else:
+            print('Мы не работаем с данной категорией виз')
     tr_elements[visa_ind].find_element(By.TAG_NAME, 'input').click()
     sleep(5)
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:j_id178').click()
     return browser
+
+
+
 
 
 if __name__ == '__main__':
@@ -139,7 +158,7 @@ if __name__ == '__main__':
     browser.find_elements(By.TAG_NAME, 'a')[2].click()  # Новое обращение / Запись на собеседование
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:j_id176').click()  # Выбор неиммиграционной визы (по умолчанию)
     browser = city_selection(browser)
-    browser = visa_category_selection(browser)
+    browser, category = visa_category_selection(browser)
     browser = visa_class_selection(browser)
     browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id1279').click()  # Персональные данные введены
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:j_id856:continueBtn').click()  # Члены семьи добавлены в список
