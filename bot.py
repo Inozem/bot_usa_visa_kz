@@ -8,6 +8,7 @@ from selenium.webdriver.common.by import By
 
 load_dotenv(find_dotenv())
 
+MAX_ERROR_COUNT = 3
 RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
 FILE_PATH = 'C:/Users/inoze/Downloads/'  # Путь для сохранения файлов
 
@@ -50,7 +51,7 @@ def reading_captcha():
     return captcha
 
 
-def authorization(browser, email, password):
+def authorization(browser, email, password, error_count=0):
     """Авторизация"""
     browser.get('https://cgifederal.secure.force.com/')
     element_id_or_name_part = 'loginPage:SiteTemplate:siteLogin:loginComponent:loginForm:'
@@ -67,16 +68,18 @@ def authorization(browser, email, password):
     sleep(10)  # browser.find_element(By.ID, f'{element_id_or_name_part}recaptcha_response_field').send_keys(reading_captcha())
     browser.find_element(By.ID, f'{element_id_or_name_part}loginButton').click()
     error_id_part = 'error:j_id132:j_id133:0:j_id134:j_id135:j_id137'
+    login_data = {'email': email, 'password': password}
     if error_id_part in browser.page_source:
-        # TODO: если обнаружена ошибка, то прекращать на этом работу и текст ошибки возвращать
-        #  при этом ответ должен быть промаркирован - он успешный или была ошибка
+        error_count += 1
         error_text = browser.find_element(By.ID, f'{element_id_or_name_part}{error_id_part}').text
         print(error_text)
-        login_data = {'email': email, 'password': password}
-        if 'Captcha.' not in error_text:
-            login_data = prepare_login_data({})
-        browser = authorization(browser, **login_data)
-    return browser
+        if 'Captcha.' in error_text and error_count < MAX_ERROR_COUNT:
+            browser, login_data = authorization(browser, error_count=error_count, **login_data)
+        elif error_count >= MAX_ERROR_COUNT:
+            raise Exception('Проблемы на стороне сервиса. Капча.')
+        else:
+            raise Exception(error_text)
+    return browser, login_data
 
 
 # TODO: все функции на вход принимают answers, чтобы использовать значения из него
@@ -173,15 +176,16 @@ if __name__ == '__main__':
 
     # полная информация, все должно в автоматическом режиме пройти
     answers = {
-        'email': os.getenv('CGIFEDERAL_EMAIL'),
-        'password': os.getenv('CGIFEDERAL_PASSWORD'),
+        # 'email': os.getenv('CGIFEDERAL_EMAIL'),
+        # 'password': os.getenv('CGIFEDERAL_PASSWORD'),
         'city': os.getenv('CGIFEDERAL_CITY'),
         'visa_category': os.getenv('CGIFEDERAL_VISA_CATEGORY'),
         'visa_class': os.getenv('CGIFEDERAL_VISA_CLASS'),
     }
 
     browser = starting_browser()
-    browser = authorization(browser, **prepare_login_data(answers))
+    browser, login_data = authorization(browser, **prepare_login_data(answers))
+    answers.update(login_data)
     browser.find_elements(By.TAG_NAME, 'a')[2].click()  # Новое обращение / Запись на собеседование
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:j_id176').click()  # Выбор неиммиграционной визы (по умолчанию)
     browser = city_selection(browser)
