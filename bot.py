@@ -14,6 +14,7 @@ FILE_PATH = 'C:/Users/inoze/Downloads/'  # Путь для сохранения 
 
 
 def starting_browser():
+    """Настройка и запуск браузера."""
     options = webdriver.ChromeOptions()
     # TODO: в конце - проверить работу в безоконном режиме (headless)
     options.add_argument("window-size=800,600")
@@ -22,6 +23,7 @@ def starting_browser():
 
 
 def prepare_login_data(answers: dict) -> dict:
+    """Подготовка адреса эл. почты и пароля."""
     required_params = {
         'email': 'Введите адрес электронной почты: \n',
         'password': 'Введите пароль: \n'
@@ -33,11 +35,11 @@ def prepare_login_data(answers: dict) -> dict:
 # TODO 2: на вход получать картинку в памяти и разгадывать ее с помощью rucaptcha
 #  без сохранения в файл
 def reading_captcha():
-    """Разгадывание капчи"""
+    """Разгадывание капчи."""
     captcha = ''
-    captchafile = {'file': open(f'{FILE_PATH}screenie.png', 'rb')}
+    captcha_file = {'file': open(f'{FILE_PATH}screenie.png', 'rb')}
     data = {'key': RUCAPTCHA_API_KEY, 'method': 'post'}
-    response_post = requests.post('http://rucaptcha.com/in.php', files=captchafile, data=data)
+    response_post = requests.post('http://rucaptcha.com/in.php', files=captcha_file, data=data)
     if 'OK' in response_post.text:
         captcha_id = response_post.text.split('|')[1]
         print(captcha_id)
@@ -52,7 +54,7 @@ def reading_captcha():
 
 
 def authorization(browser, email, password, error_count=0):
-    """Авторизация"""
+    """Авторизация."""
     browser.get('https://cgifederal.secure.force.com/')
     element_id_or_name_part = 'loginPage:SiteTemplate:siteLogin:loginComponent:loginForm:'
     browser.find_element(By.ID, f'{element_id_or_name_part}username').send_keys(email)
@@ -62,8 +64,6 @@ def authorization(browser, email, password, error_count=0):
     # TODO: скриншот не производительно делать, нужно найти элемент img и в нем забрать ссылку
     #  эта ссылка - по сути закодированное изображение в (base64) - его в памяти (!)
     #  сохраняем и отправляем уже в сервис рекапчи
-    #  еще минус скриншота - в докере селениум будет в безоконном режиме
-    #  и там ловить капчу будет сложно :)
     browser.find_element(By.ID, f'{element_id_or_name_part}theId').screenshot(f'{FILE_PATH}screenie.png')
     sleep(10)  # browser.find_element(By.ID, f'{element_id_or_name_part}recaptcha_response_field').send_keys(reading_captcha())
     browser.find_element(By.ID, f'{element_id_or_name_part}loginButton').click()
@@ -86,26 +86,29 @@ def authorization(browser, email, password, error_count=0):
 #  если значение не найдено - тогда спрашиваем у пользователя
 #  при этом все ответы запоминаем и при возврате результата (успешного или с ошибками)
 #  возвращаем актуальный словарь ответов
-def city_selection(browser):
-    """Выбор города"""
+def city_selection(browser, answers):
+    """Выбор города."""
     tr_elements = browser.find_elements(By.TAG_NAME, 'tr')
     cities = {i: tr_elements[i].text for i in range(len(tr_elements))}
-    city_ind_in_cities = False
-    city_ind = ''
-    input_text_part_1 = 'Введите номер города, в котором хотите пройти собеседование:\n'
-    input_text_part_2 = '\n'.join([f'{ind} - {name}' for ind, name in cities.items()]) + '\n'
-    while not city_ind_in_cities:
+    city_ind = None
+    try:
+        city_ind = [*cities.values()].index(answers['city'])
+    except (ValueError, KeyError):
+        input_text_part_1 = 'Введите номер города, в котором хотите пройти собеседование:\n'
+        input_text_part_2 = '\n'.join([f'{ind} - {name}' for ind, name in cities.items()]) + '\n'
         city_ind = int(input(f'{input_text_part_1}{input_text_part_2}'))
-        if city_ind in cities:
-            city_ind_in_cities = True
-    tr_elements[city_ind].find_element(By.TAG_NAME, 'input').click()
+    try:
+        tr_elements[city_ind].find_element(By.TAG_NAME, 'input').click()
+    except KeyError:
+        raise Exception('Выбранный город недоступен')
+    answers.update({'city': cities[city_ind]})
     sleep(5)
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:j_id112:j_id169').click()
-    return browser
+    return browser, answers
 
 
 def visa_category_selection(browser):
-    """Выбор категории визы"""
+    """Выбор категории визы."""
     tr_elements = browser.find_elements(By.TAG_NAME, 'tr')
     visa_categories = {i: tr_elements[i].text for i in range(len(tr_elements))}
     visa_ind_in_visa_categories = False
@@ -131,7 +134,7 @@ def visa_category_selection(browser):
 
 
 def visa_class_selection(browser):
-    """Выбор класса визы"""
+    """Выбор класса визы."""
     table_elements = browser.find_elements(By.TAG_NAME, 'table')
     tr_elements = table_elements[1].find_elements(By.TAG_NAME, 'tr')
     visa_classes = {i: tr_elements[i].text for i in range(len(tr_elements))}
@@ -176,9 +179,9 @@ if __name__ == '__main__':
 
     # полная информация, все должно в автоматическом режиме пройти
     answers = {
-        # 'email': os.getenv('CGIFEDERAL_EMAIL'),
-        # 'password': os.getenv('CGIFEDERAL_PASSWORD'),
-        'city': os.getenv('CGIFEDERAL_CITY'),
+        'email': os.getenv('CGIFEDERAL_EMAIL'),
+        'password': os.getenv('CGIFEDERAL_PASSWORD'),
+        'city': 'a',  # os.getenv('CGIFEDERAL_CITY'),
         'visa_category': os.getenv('CGIFEDERAL_VISA_CATEGORY'),
         'visa_class': os.getenv('CGIFEDERAL_VISA_CLASS'),
     }
@@ -188,7 +191,7 @@ if __name__ == '__main__':
     answers.update(login_data)
     browser.find_elements(By.TAG_NAME, 'a')[2].click()  # Новое обращение / Запись на собеседование
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:j_id176').click()  # Выбор неиммиграционной визы (по умолчанию)
-    browser = city_selection(browser)
+    browser, answers = city_selection(browser, answers)
     browser, category = visa_category_selection(browser)
     browser = visa_class_selection(browser)
     browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id1279').click()  # Персональные данные введены
