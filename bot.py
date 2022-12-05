@@ -22,15 +22,6 @@ def starting_browser():
     return browser
 
 
-def prepare_login_data(answers: dict) -> dict:
-    """Подготовка адреса эл. почты и пароля."""
-    required_params = {
-        'email': 'Введите адрес электронной почты: \n',
-        'password': 'Введите пароль: \n'
-    }
-    return {key: answers.get(key) or input(value) for key, value in required_params.items()}
-
-
 # TODO: добавить везде аннотации типов
 # TODO 2: на вход получать картинку в памяти и разгадывать ее с помощью rucaptcha
 #  без сохранения в файл
@@ -53,12 +44,17 @@ def reading_captcha():
     return captcha
 
 
-def authorization(browser, email, password, error_count=0):
+def authorization(browser, answers, error_count=0):
     """Авторизация."""
+    required_params = {
+        'email': 'Введите адрес электронной почты: \n',
+        'password': 'Введите пароль: \n'
+    }
+    login_data = {key: answers.get(key) or input(value) for key, value in required_params.items()}
     browser.get('https://cgifederal.secure.force.com/')
     element_id_or_name_part = 'loginPage:SiteTemplate:siteLogin:loginComponent:loginForm:'
-    browser.find_element(By.ID, f'{element_id_or_name_part}username').send_keys(email)
-    browser.find_element(By.ID, f'{element_id_or_name_part}password').send_keys(password)
+    browser.find_element(By.ID, f'{element_id_or_name_part}username').send_keys(login_data['email'])
+    browser.find_element(By.ID, f'{element_id_or_name_part}password').send_keys(login_data['password'])
     browser.find_element(By.NAME, f'{element_id_or_name_part}j_id167').click()
     sleep(10)  # Вместо паузы сделать выполнение следующей функции только после загрузки капчи
     # TODO: скриншот не производительно делать, нужно найти элемент img и в нем забрать ссылку
@@ -66,20 +62,20 @@ def authorization(browser, email, password, error_count=0):
     #  сохраняем и отправляем уже в сервис рекапчи
     browser.find_element(By.ID, f'{element_id_or_name_part}theId').screenshot(f'{FILE_PATH}screenie.png')
     sleep(10)  # browser.find_element(By.ID, f'{element_id_or_name_part}recaptcha_response_field').send_keys(reading_captcha())
+    answers.update(login_data)
     browser.find_element(By.ID, f'{element_id_or_name_part}loginButton').click()
     error_id_part = 'error:j_id132:j_id133:0:j_id134:j_id135:j_id137'
-    login_data = {'email': email, 'password': password}
     if error_id_part in browser.page_source:
         error_count += 1
         error_text = browser.find_element(By.ID, f'{element_id_or_name_part}{error_id_part}').text
         print(error_text)
         if 'Captcha.' in error_text and error_count < MAX_ERROR_COUNT:
-            browser, login_data = authorization(browser, error_count=error_count, **login_data)
+            browser, answers = authorization(browser, answers, error_count)
         elif error_count >= MAX_ERROR_COUNT:
             raise Exception('Проблемы на стороне сервиса. Капча.')
         else:
             raise Exception(error_text)
-    return browser, login_data
+    return browser, answers
 
 
 # TODO: все функции на вход принимают answers, чтобы использовать значения из него
@@ -180,15 +176,15 @@ if __name__ == '__main__':
     # полная информация, все должно в автоматическом режиме пройти
     answers = {
         'email': os.getenv('CGIFEDERAL_EMAIL'),
-        'password': os.getenv('CGIFEDERAL_PASSWORD'),
-        'city': 'a',  # os.getenv('CGIFEDERAL_CITY'),
+        # 'password': os.getenv('CGIFEDERAL_PASSWORD'),
+        'city': os.getenv('CGIFEDERAL_CITY'),
         'visa_category': os.getenv('CGIFEDERAL_VISA_CATEGORY'),
         'visa_class': os.getenv('CGIFEDERAL_VISA_CLASS'),
     }
 
     browser = starting_browser()
-    browser, login_data = authorization(browser, **prepare_login_data(answers))
-    answers.update(login_data)
+    browser, answers = authorization(browser, answers)
+    print(answers)
     browser.find_elements(By.TAG_NAME, 'a')[2].click()  # Новое обращение / Запись на собеседование
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:j_id176').click()  # Выбор неиммиграционной визы (по умолчанию)
     browser, answers = city_selection(browser, answers)
