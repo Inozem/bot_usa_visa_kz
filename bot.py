@@ -5,6 +5,7 @@ from time import sleep
 import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
 
 load_dotenv(find_dotenv())
 
@@ -162,7 +163,28 @@ def visa_class_selection(browser, answers):
     return browser, answers
 
 
-
+def answering_questions(browser, answers):
+    """Ответы на вопросы."""
+    bottom_answer = {
+        'YES': 'j_id0:SiteTemplate:j_id110:j_id177',
+        'NO': 'j_id0:SiteTemplate:j_id110:j_id176'
+    }
+    if answers['visa_category'] == 'Виза B1/B2 (туризм, посещение родственников, деловые поездки и не срочное медицинское лечение)':
+        sleep(5)
+        browser.find_element(By.NAME, bottom_answer['NO']).click()  # Вопрос: Вы старше 80 лет? (Нет)
+        browser.find_element(By.NAME, bottom_answer['NO']).click()  # Вопрос: Вы младше 14 лет? (Нет)
+        browser.find_element(By.NAME, bottom_answer['NO']).click()  # Вопрос: Виза еще действительна? (Нет)
+    elif answers['visa_category'] == 'Визы для студентов и участников программ обмена (первичные обращения и обращения без прохождения личного собеседования)':
+        sleep(5)
+        browser.find_element(By.NAME, bottom_answer['NO']).click()  # Вопрос: Получали ли вы отказ? (Нет)
+        browser.find_element(By.NAME, bottom_answer['YES']).click()  # Вопрос: Оплатили ли Вы сбор SEVIS? (Да)
+        browser.find_element(By.NAME, bottom_answer['NO']).click()  # Вопрос: Вы старше 80 лет? (Нет)
+        browser.find_element(By.NAME, bottom_answer['NO']).click()  # Вопрос: Виза еще действительна? (Нет)
+    elif answers['visa_category'] == 'Визы для студентов и участников программ обмена (которым ранее было отказано в визе)':
+        sleep(5)
+        browser.find_element(By.NAME, bottom_answer['YES']).click()  # Вопрос: Оплатили ли Вы сбор SEVIS? (Да)
+        browser.find_element(By.NAME, bottom_answer['YES']).click()  # Вопрос: Получали ли вы отказ? (Да)
+    return browser
 
 
 if __name__ == '__main__':
@@ -184,20 +206,27 @@ if __name__ == '__main__':
         'password': os.getenv('CGIFEDERAL_PASSWORD'),
         'city': os.getenv('CGIFEDERAL_CITY'),
         'visa_category': os.getenv('CGIFEDERAL_VISA_CATEGORY'),
-        'visa_class': 'a' # os.getenv('CGIFEDERAL_VISA_CLASS'),
+        'visa_class': os.getenv('CGIFEDERAL_VISA_CLASS'),
+        'status': os.getenv('CGIFEDERAL_STATUS'),
     }
 
     browser = starting_browser()
     browser, answers = authorization(browser, answers)
+    Select(browser.find_element(By.NAME, 'j_id0:SiteTemplate:j_id14:j_id15:j_id26:j_id27:j_id28:j_id30')).select_by_visible_text('Russian')
     browser.find_elements(By.TAG_NAME, 'a')[2].click()  # Новое обращение / Запись на собеседование
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:j_id176').click()  # Выбор неиммиграционной визы (по умолчанию)
     browser, answers = city_selection(browser, answers)
     browser, answers = visa_category_selection(browser, answers)
     browser, answers = visa_class_selection(browser, answers)
-    print(answers)
     browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id1279').click()  # Персональные данные введены
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:j_id856:continueBtn').click()  # Члены семьи добавлены в список
-    sleep(15)
+    browser = answering_questions(browser, answers)
+    browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:Continue').click()  # Информация о доставке документов
+    sleep(5)
+    browser.find_element(By.CLASS_NAME, 'ui-button-text-only').click()  # Информация о визовом сборе (всплывающее окно)
+    sleep(5)
+    # browser.find_element(By.CLASS_NAME, 'ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only').click()  # Выбор способа оплаты (Не всплываетесли оплачено)
+    browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:continue_btn').click()  # Регистрация номера платежа
     # TODO: успех - это созданная запись + доступные окна для записи
     #  (то есть надо распарсить последнюю страницу)
     with open(f'{FILE_PATH}page.txt', 'w', encoding="utf-8") as file:
