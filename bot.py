@@ -131,7 +131,7 @@ def visa_category_selection(browser, answers):
     return browser, answers
 
 
-def visa_class_selection(browser):
+def visa_class_selection(browser, answers):
     """Выбор класса визы."""
     visa_class_supported = [
         'B1 - Виза для деловых поездок',
@@ -143,20 +143,23 @@ def visa_class_selection(browser):
     table_elements = browser.find_elements(By.TAG_NAME, 'table')
     tr_elements = table_elements[1].find_elements(By.TAG_NAME, 'tr')
     visa_classes = {i: tr_elements[i].text for i in range(len(tr_elements))}
-    visa_ind_in_visa_classes = False
-    visa_ind = ''
-    input_text_part_1 = 'Выберите номер визового класса:\n'
-    input_text_part_2 = '\n'.join([f'{ind} - {type}' for ind, type in visa_classes.items()]) + '\n'
-    while not visa_ind_in_visa_classes:
+    visa_ind = None
+    try:
+        visa_ind = [*visa_classes.values()].index(answers['visa_class'])
+    except (ValueError, KeyError):
+        input_text_part_1 = 'Выберите номер визового класса:\n'
+        input_text_part_2 = '\n'.join([f'{ind} - {type}' for ind, type in visa_classes.items()]) + '\n'
         visa_ind = int(input(f'{input_text_part_1}{input_text_part_2}'))
-        if visa_classes[visa_ind] in visa_class_supported:
-            visa_ind_in_visa_classes = True
-        else:
-            print('Мы не работаем с данной категорией виз')
-    tr_elements[visa_ind].find_element(By.TAG_NAME, 'input').click()
+    try:
+        tr_elements[visa_ind].find_element(By.TAG_NAME, 'input').click()
+        if tr_elements[visa_ind].text not in visa_class_supported:
+            raise Exception(f'Сервис не работает с категорией виз под номером {visa_ind}')
+    except IndexError:
+        raise Exception(f'Нет категории с номером {visa_ind}')
+    answers.update({'visa_class': visa_classes[visa_ind]})
     sleep(5)
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:j_id178').click()
-    return browser
+    return browser, answers
 
 
 
@@ -181,7 +184,7 @@ if __name__ == '__main__':
         'password': os.getenv('CGIFEDERAL_PASSWORD'),
         'city': os.getenv('CGIFEDERAL_CITY'),
         'visa_category': os.getenv('CGIFEDERAL_VISA_CATEGORY'),
-        'visa_class': os.getenv('CGIFEDERAL_VISA_CLASS'),
+        'visa_class': 'a' # os.getenv('CGIFEDERAL_VISA_CLASS'),
     }
 
     browser = starting_browser()
@@ -190,8 +193,8 @@ if __name__ == '__main__':
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:j_id176').click()  # Выбор неиммиграционной визы (по умолчанию)
     browser, answers = city_selection(browser, answers)
     browser, answers = visa_category_selection(browser, answers)
+    browser, answers = visa_class_selection(browser, answers)
     print(answers)
-    browser = visa_class_selection(browser)
     browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id1279').click()  # Персональные данные введены
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:j_id856:continueBtn').click()  # Члены семьи добавлены в список
     sleep(15)
