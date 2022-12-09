@@ -228,7 +228,7 @@ def searching_free_date(browser, answers, error_count=0):
         first_date = date(*[int(d) for d in dates[0].split('.')][::-1])
         last_date = date(*[int(d) for d in dates[1].split('.')][::-1])
         earliest_date = ''
-        while not too_late:
+        while True:
             calendar_first_month = browser.find_element(By.CLASS_NAME, 'ui-datepicker-group-first')
             month, year = calendar_first_month.find_element(By.CLASS_NAME, 'ui-datepicker-header').text.split(' ')
             month = months.index(month.split('\n')[1]) + 1
