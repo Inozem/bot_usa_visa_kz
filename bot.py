@@ -1,9 +1,11 @@
+from datetime import date
 from dotenv import load_dotenv, find_dotenv
 import os
 from time import sleep
 
 import requests
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 
@@ -187,6 +189,76 @@ def answering_questions(browser, answers):
     return browser
 
 
+def status_selection(browser, answers):
+    """Выбор статуса."""
+    tr_elements = browser.find_elements(By.TAG_NAME, 'tr')[1:]
+    statuses = {i: tr_elements[i].text.split(' ')[0] for i in range(len(tr_elements))}
+    status_ind = None
+    try:
+        status_ind = [*statuses.values()].index(answers['status'])
+    except (ValueError, KeyError):
+        input_text_part_1 = 'Введите номер статуса:\n'
+        input_text_part_2 = '\n'.join([f'{ind} - {name}' for ind, name in statuses.items()]) + '\n'
+        status_ind = int(input(f'{input_text_part_1}{input_text_part_2}'))
+    try:
+        tr_elements[status_ind].find_element(By.TAG_NAME, 'input').click()
+    except IndexError:
+        raise Exception(f'Статус под номером {status_ind} недоступен')
+    answers.update({'status': statuses[status_ind]})
+    sleep(5)
+    browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:j_id170').click()
+    return browser, answers
+
+
+def searching_free_date(browser, answers, error_count=0):
+    """Поиск свободных дат."""
+    browser.find_element(By.ID, 'thePage:SiteTemplate:recaptcha_form:captcha_image').screenshot(f'{FILE_PATH}screenie.png')
+    sleep(15)
+    # browser.find_element(By.ID, 'thePage:SiteTemplate:recaptcha_form:recaptcha_response_field').send_keys(reading_captcha())
+    browser.find_element(By.NAME, 'thePage:SiteTemplate:recaptcha_form:j_id130').click()
+    if 'Перепечатайте слова отображенные ниже' in browser.page_source and error_count < MAX_ERROR_COUNT:
+        error_count += 1
+        browser, answers = searching_free_date(browser, answers, error_count)
+    elif error_count >= MAX_ERROR_COUNT:
+        raise Exception('Проблемы на стороне сервиса. Капча.')
+
+    try:
+        months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+        dates = answers['dates'].split(' - ')
+        first_date = date(*[int(d) for d in dates[0].split('.')][::-1])
+        last_date = date(*[int(d) for d in dates[1].split('.')][::-1])
+        earliest_date = ''
+        while not too_late:
+            calendar_first_month = browser.find_element(By.CLASS_NAME, 'ui-datepicker-group-first')
+            month, year = calendar_first_month.find_element(By.CLASS_NAME, 'ui-datepicker-header').text.split(' ')
+            month = months.index(month.split('\n')[1]) + 1
+            year = int(year)
+            weeks = calendar_first_month.find_elements(By.TAG_NAME, 'tr')
+            for week in weeks:
+                days = week.find_elements(By.TAG_NAME, 'td')
+                for day in days:
+                    try:
+                        day.find_element(By.TAG_NAME, 'a')
+                        checking_date = date(year, month, int(day.text))
+                        if not earliest_date:
+                            earliest_date = checking_date.strftime('%d.%m.%Y')
+                        if first_date <= checking_date <= last_date:
+                            # day.click()
+                            # browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id203:0:j_id205').click()
+                            print(browser.find_element(By.ID, 'myCalendarTable').text)  # browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:addItem').click()  # Отправка заявки на собеседование
+                            return f'Вы записаны к консулу на {earliest_date}'
+                        elif checking_date > last_date:
+                            return f'Нет подходящих дат. Самая ранняя свободная дата: {earliest_date}'
+                    except (NoSuchElementException):
+                        pass
+            browser.find_element(By.CLASS_NAME, 'ui-datepicker-next').click()
+    except KeyError:
+        browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id203:0:j_id205').click()
+        return browser.find_element(By.ID, 'myCalendarTable').text  # browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:addItem').click()  # Отправка заявки на собеседование
+    # Добавить парсинг финальной страницы с подтверждением брони
+    return message
+
+
 if __name__ == '__main__':
     # TODO: сделать функцию, которая на вход принимает словарь с параметрами (ответами)
     #  примеры такого словаря:
@@ -208,6 +280,7 @@ if __name__ == '__main__':
         'visa_category': os.getenv('CGIFEDERAL_VISA_CATEGORY'),
         'visa_class': os.getenv('CGIFEDERAL_VISA_CLASS'),
         'status': os.getenv('CGIFEDERAL_STATUS'),
+        'dates': os.getenv('CGIFEDERAL_DATES'),
     }
 
     browser = starting_browser()
@@ -225,8 +298,12 @@ if __name__ == '__main__':
     sleep(5)
     browser.find_element(By.CLASS_NAME, 'ui-button-text-only').click()  # Информация о визовом сборе (всплывающее окно)
     sleep(5)
-    # browser.find_element(By.CLASS_NAME, 'ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only').click()  # Выбор способа оплаты (Не всплываетесли оплачено)
+    # browser.find_element(By.CLASS_NAME, 'ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only').click()  # Выбор способа оплаты (Не всплывает если оплачено)
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:continue_btn').click()  # Регистрация номера платежа
+    browser, answers = status_selection(browser, answers)
+    message = searching_free_date(browser, answers)
+    print(message)
+    sleep(60)
     # TODO: успех - это созданная запись + доступные окна для записи
     #  (то есть надо распарсить последнюю страницу)
     with open(f'{FILE_PATH}page.txt', 'w', encoding="utf-8") as file:
