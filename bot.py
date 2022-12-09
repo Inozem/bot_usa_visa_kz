@@ -256,7 +256,6 @@ def searching_free_date(browser, answers, error_count=0):
         browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id203:0:j_id205').click()
         return browser.find_element(By.ID, 'myCalendarTable').text  # browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:addItem').click()  # Отправка заявки на собеседование
     # Добавить парсинг финальной страницы с подтверждением брони
-    return message
 
 
 if __name__ == '__main__':
