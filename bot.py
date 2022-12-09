@@ -229,6 +229,7 @@ def searching_free_date(browser, answers, error_count=0):
         last_date = date(*[int(d) for d in dates[1].split('.')][::-1])
         earliest_date = ''
         while True:
+            sleep(5)
             calendar_first_month = browser.find_element(By.CLASS_NAME, 'ui-datepicker-group-first')
             month, year = calendar_first_month.find_element(By.CLASS_NAME, 'ui-datepicker-header').text.split(' ')
             month = months.index(month.split('\n')[1]) + 1
@@ -243,12 +244,13 @@ def searching_free_date(browser, answers, error_count=0):
                         if not earliest_date:
                             earliest_date = checking_date.strftime('%d.%m.%Y')
                         if first_date <= checking_date <= last_date:
-                            # day.click()
-                            # browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id203:0:j_id205').click()
+                            day.click()
+                            browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id203:0:j_id205').click()
+                            sleep(5)
                             print(browser.find_element(By.ID, 'myCalendarTable').text)  # browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:addItem').click()  # Отправка заявки на собеседование
                             return f'Вы записаны к консулу на {earliest_date}'
                         elif checking_date > last_date:
-                            return f'Нет подходящих дат. Самая ранняя свободная дата: {earliest_date}'
+                            return f'Нет подходящих дат. Самая ранняя свободная дата: {int(day.text)}.{month}.{year}'
                     except (NoSuchElementException):
                         pass
             browser.find_element(By.CLASS_NAME, 'ui-datepicker-next').click()
@@ -302,7 +304,7 @@ if __name__ == '__main__':
     browser, answers = status_selection(browser, answers)
     message = searching_free_date(browser, answers)
     print(message)
-    sleep(60)
+    sleep(600)
     # TODO: успех - это созданная запись + доступные окна для записи
     #  (то есть надо распарсить последнюю страницу)
     with open(f'{FILE_PATH}page.txt', 'w', encoding="utf-8") as file:
