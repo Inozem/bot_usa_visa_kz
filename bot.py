@@ -81,10 +81,6 @@ def authorization(browser, answers, error_count=0):
     return browser, answers
 
 
-# TODO: все функции на вход принимают answers, чтобы использовать значения из него
-#  если значение не найдено - тогда спрашиваем у пользователя
-#  при этом все ответы запоминаем и при возврате результата (успешного или с ошибками)
-#  возвращаем актуальный словарь ответов
 def city_selection(browser, answers):
     """Выбор города."""
     tr_elements = browser.find_elements(By.TAG_NAME, 'tr')
@@ -210,11 +206,34 @@ def status_selection(browser, answers):
     return browser, answers
 
 
+def registration(browser):
+    browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id203:0:j_id205').click()
+    sleep(5)  # Ожидание обновления данных на сайте
+    browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:addItem').click()  # Отправка заявки на собеседование
+    info_title = browser.find_element(By.CLASS_NAME, 'apptSchedMsg').text
+    info = [info_title]
+    try:
+        info_string_titles = ['Адрес:', 'Дата собеседования:', 'Время собеседования:']
+        info_table = browser.find_element(By.CLASS_NAME, 'appTable')
+        info_table_strings = info_table.find_elements(By.TAG_NAME, 'tr')
+        for string in info_table_strings:
+            for title in info_string_titles:
+                if title in string.text:
+                    info_string_value = string.find_elements(By.TAG_NAME, "td")[1].text
+                    info.append(f'{title} {info_string_value}')
+    except NoSuchElementException:
+        info.append('Что-то пошло не так.'
+                    'Возможно запись на собеседование не была завершена.'
+                    'Для получения более подробной информации обратитесь в '
+                    'поддержку.')
+    return '\n'.join(info)
+
+
 def searching_free_date(browser, answers, error_count=0):
     """Поиск свободных дат."""
     browser.find_element(By.ID, 'thePage:SiteTemplate:recaptcha_form:captcha_image').screenshot(f'{FILE_PATH}screenie.png')
     sleep(15)
-    # browser.find_element(By.ID, 'thePage:SiteTemplate:recaptcha_form:recaptcha_response_field').send_keys(reading_captcha())
+    browser.find_element(By.ID, 'thePage:SiteTemplate:recaptcha_form:recaptcha_response_field').send_keys(reading_captcha())
     browser.find_element(By.NAME, 'thePage:SiteTemplate:recaptcha_form:j_id130').click()
     if 'Перепечатайте слова отображенные ниже' in browser.page_source and error_count < MAX_ERROR_COUNT:
         error_count += 1
@@ -245,35 +264,17 @@ def searching_free_date(browser, answers, error_count=0):
                             earliest_date = checking_date.strftime('%d.%m.%Y')
                         if first_date <= checking_date <= last_date:
                             day.click()
-                            browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id203:0:j_id205').click()
-                            sleep(5)
-                            print(browser.find_element(By.ID, 'myCalendarTable').text)  # browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:addItem').click()  # Отправка заявки на собеседование
-                            return f'Вы записаны к консулу на {earliest_date}'
+                            return registration(browser)
                         elif checking_date > last_date:
                             return f'Нет подходящих дат. Самая ранняя свободная дата: {int(day.text)}.{month}.{year}'
                     except (NoSuchElementException):
                         pass
             browser.find_element(By.CLASS_NAME, 'ui-datepicker-next').click()
     except KeyError:
-        browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:j_id203:0:j_id205').click()
-        return browser.find_element(By.ID, 'myCalendarTable').text  # browser.find_element(By.NAME, 'thePage:SiteTemplate:theForm:addItem').click()  # Отправка заявки на собеседование
-    # Добавить парсинг финальной страницы с подтверждением брони
+        return registration(browser)
 
 
 if __name__ == '__main__':
-    # TODO: сделать функцию, которая на вход принимает словарь с параметрами (ответами)
-    #  примеры такого словаря:
-
-    # пустой словарь - первый запуск еще никаких ответов система не запомнила
-    # answers = {}
-
-    # частичная информация, в таком случае вопросы будут только там, где нет ответов
-    # answers = {
-    #     'email': 'my.email@gmail.com',
-    #     'password': 'the-best-password',
-    # }
-
-    # полная информация, все должно в автоматическом режиме пройти
     answers = {
         'email': os.getenv('CGIFEDERAL_EMAIL'),
         'password': os.getenv('CGIFEDERAL_PASSWORD'),
@@ -305,7 +306,3 @@ if __name__ == '__main__':
     message = searching_free_date(browser, answers)
     print(message)
     sleep(600)
-    # TODO: успех - это созданная запись + доступные окна для записи
-    #  (то есть надо распарсить последнюю страницу)
-    with open(f'{FILE_PATH}page.txt', 'w', encoding="utf-8") as file:
-        file.write(browser.page_source)
