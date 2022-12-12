@@ -229,6 +229,35 @@ def registration(browser):
     return '\n'.join(info)
 
 
+def getting_all_free_dates(browser):
+    free_dates = []
+    months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+    next_year = date.today().year + 1
+    next_month = (date.today().month + 1) % 12
+    this_day = date.today().day
+    last_free_date = date(next_year, next_month, this_day)
+    too_late = False
+    while not too_late:
+        calendar_first_month = browser.find_element(By.CLASS_NAME, 'ui-datepicker-group-first')
+        month, year = calendar_first_month.find_element(By.CLASS_NAME, 'ui-datepicker-header').text.split(' ')
+        month = months.index(month.split('\n')[1]) + 1
+        year = int(year)
+        weeks = calendar_first_month.find_elements(By.TAG_NAME, 'tr')
+        for week in weeks:
+            days = week.find_elements(By.TAG_NAME, 'td')
+            for day in days:
+                try:
+                    day.find_element(By.TAG_NAME, 'a')
+                    checking_date = date(year, month, int(day.text))
+                    free_dates.append(checking_date.strftime('%d.%m.%Y'))
+                    if checking_date >= last_free_date:
+                        too_late = True
+                except NoSuchElementException:
+                    pass
+        browser.find_element(By.CLASS_NAME, 'ui-datepicker-next').click()
+    return free_dates
+
+
 def searching_free_date(browser, answers, error_count=0):
     """Поиск свободных дат."""
     browser.find_element(By.ID, 'thePage:SiteTemplate:recaptcha_form:captcha_image').screenshot(f'{FILE_PATH}screenie.png')
@@ -283,6 +312,7 @@ if __name__ == '__main__':
         'visa_class': os.getenv('CGIFEDERAL_VISA_CLASS'),
         'status': os.getenv('CGIFEDERAL_STATUS'),
         'dates': os.getenv('CGIFEDERAL_DATES'),
+        'find_all_free_dates': True,
     }
 
     browser = starting_browser()
@@ -303,6 +333,8 @@ if __name__ == '__main__':
     # browser.find_element(By.CLASS_NAME, 'ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only').click()  # Выбор способа оплаты (Не всплывает если оплачено)
     browser.find_element(By.NAME, 'j_id0:SiteTemplate:theForm:continue_btn').click()  # Регистрация номера платежа
     browser, answers = status_selection(browser, answers)
-    message = searching_free_date(browser, answers)
-    print(message)
+    if answers['find_all_free_dates']:
+        print('\n'.join(getting_all_free_dates(browser)))
+    else:
+        print(searching_free_date(browser, answers))
     sleep(600)
