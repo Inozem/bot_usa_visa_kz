@@ -50,11 +50,14 @@ def reading_captcha():
         captcha_id = response_post.text.split('|')[1]
         print(captcha_id)
         response_get_text = ''
-        while 'OK' not in response_get_text:
-            sleep(5)
-            response_get = requests.get(f'http://2captcha.com/res.php?key={RUCAPTCHA_API_KEY}&action=get&id={captcha_id}')
-            response_get_text = response_get.text
-            print(response_get_text)
+        for _ in range(MAX_ERROR_COUNT):
+            if 'OK' not in response_get_text:
+                sleep(5)
+                response_get = requests.get(f'http://2captcha.com/res.php?key={RUCAPTCHA_API_KEY}&action=get&id={captcha_id}')
+                response_get_text = response_get.text
+                print(response_get_text)
+            else:
+                break
         captcha = response_get_text.split('|')[1]
     return captcha
 
@@ -78,7 +81,6 @@ def authorization(browser, answers, error_count=0):
     #  сохраняем и отправляем уже в сервис рекапчи
     browser.find_element(By.ID, picture_id).screenshot(f'{FILE_PATH}screenie.png')
     browser.find_element(By.ID, f'{element_id_or_name_part}recaptcha_response_field').send_keys(reading_captcha())
-    sleep(50)
     answers.update(login_data)
     browser.find_element(By.ID, f'{element_id_or_name_part}loginButton').click()
     error_id_part = 'error:j_id132:j_id133:0:j_id134:j_id135:j_id137'
