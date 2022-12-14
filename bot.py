@@ -5,13 +5,15 @@ from time import sleep
 
 import requests
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import Select
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import Select, WebDriverWait
 
 load_dotenv(find_dotenv())
 
-MAX_ERROR_COUNT = 3
+TIME_OUT = 10  # Максимальное время ожидания загрузки элемента (секунды)
+MAX_ERROR_COUNT = 3  # Максимальное количество попыток при появлении ошибок
 RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
 FILE_PATH = 'C:/Users/inoze/Downloads/'  # Путь для сохранения файлов
 
@@ -23,6 +25,16 @@ def starting_browser():
     options.add_argument("window-size=800,600")
     browser = webdriver.Chrome(options=options)
     return browser
+
+
+def waiting_picture(browser, picture_id, error_count=0):
+    picture_size = browser.find_element(By.ID, picture_id).size
+    if error_count >= TIME_OUT:
+        raise Exception('Проблемы на стороне сервиса. Капча. Не прогружается картинка.')
+    elif int(picture_size['height']) <= 40:
+        sleep(1)
+        error_count += 1
+        waiting_picture(browser, picture_id, error_count)
 
 
 # TODO: добавить везде аннотации типов
@@ -59,12 +71,14 @@ def authorization(browser, answers, error_count=0):
     browser.find_element(By.ID, f'{element_id_or_name_part}username').send_keys(login_data['email'])
     browser.find_element(By.ID, f'{element_id_or_name_part}password').send_keys(login_data['password'])
     browser.find_element(By.NAME, f'{element_id_or_name_part}j_id167').click()
-    sleep(10)  # Вместо паузы сделать выполнение следующей функции только после загрузки капчи
+    picture_id = f'{element_id_or_name_part}theId'
+    waiting_picture(browser, picture_id)
     # TODO: скриншот не производительно делать, нужно найти элемент img и в нем забрать ссылку
     #  эта ссылка - по сути закодированное изображение в (base64) - его в памяти (!)
     #  сохраняем и отправляем уже в сервис рекапчи
-    browser.find_element(By.ID, f'{element_id_or_name_part}theId').screenshot(f'{FILE_PATH}screenie.png')
-    sleep(10)  # browser.find_element(By.ID, f'{element_id_or_name_part}recaptcha_response_field').send_keys(reading_captcha())
+    browser.find_element(By.ID, picture_id).screenshot(f'{FILE_PATH}screenie.png')
+    browser.find_element(By.ID, f'{element_id_or_name_part}recaptcha_response_field').send_keys(reading_captcha())
+    sleep(50)
     answers.update(login_data)
     browser.find_element(By.ID, f'{element_id_or_name_part}loginButton').click()
     error_id_part = 'error:j_id132:j_id133:0:j_id134:j_id135:j_id137'
@@ -260,8 +274,9 @@ def getting_all_free_dates(browser):
 
 def searching_free_date(browser, answers, error_count=0):
     """Поиск свободных дат."""
-    browser.find_element(By.ID, 'thePage:SiteTemplate:recaptcha_form:captcha_image').screenshot(f'{FILE_PATH}screenie.png')
-    sleep(15)
+    picture_id = 'thePage:SiteTemplate:recaptcha_form:captcha_image'
+    waiting_picture(browser, picture_id)
+    browser.find_element(By.ID, picture_id).screenshot(f'{FILE_PATH}screenie.png')
     browser.find_element(By.ID, 'thePage:SiteTemplate:recaptcha_form:recaptcha_response_field').send_keys(reading_captcha())
     browser.find_element(By.NAME, 'thePage:SiteTemplate:recaptcha_form:j_id130').click()
     if 'Перепечатайте слова отображенные ниже' in browser.page_source and error_count < MAX_ERROR_COUNT:
