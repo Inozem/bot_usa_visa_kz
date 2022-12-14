@@ -42,7 +42,6 @@ def waiting_picture(browser, picture_id, error_count=0):
 #  без сохранения в файл
 def reading_captcha():
     """Разгадывание капчи."""
-    captcha = ''
     captcha_file = {'file': open(f'{FILE_PATH}screenie.png', 'rb')}
     data = {'key': RUCAPTCHA_API_KEY, 'method': 'post'}
     response_post = requests.post('http://rucaptcha.com/in.php', files=captcha_file, data=data)
@@ -50,16 +49,16 @@ def reading_captcha():
         captcha_id = response_post.text.split('|')[1]
         print(captcha_id)
         response_get_text = ''
-        for _ in range(MAX_ERROR_COUNT):
+        for i in range(MAX_ERROR_COUNT + 1):
+            if i == MAX_ERROR_COUNT:
+                raise Exception(f'Проблемы на стороне сервиса. Капча. {response_get_text}')
             if 'OK' not in response_get_text:
                 sleep(5)
                 response_get = requests.get(f'http://2captcha.com/res.php?key={RUCAPTCHA_API_KEY}&action=get&id={captcha_id}')
                 response_get_text = response_get.text
                 print(response_get_text)
             else:
-                break
-        captcha = response_get_text.split('|')[1]
-    return captcha
+                return response_get_text.split('|')[1]
 
 
 def authorization(browser, answers, error_count=0):
