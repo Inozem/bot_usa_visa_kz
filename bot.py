@@ -1,3 +1,7 @@
+# общий совет: поставить автоматический форматтер, например, black,
+# линтер, например, flake8 и автоматический сортировщик импортов, например, isort
+# поможет устранить часть кода и часть кода превратить в более простые блоки
+
 from datetime import date
 from dotenv import load_dotenv, find_dotenv
 import os
@@ -16,12 +20,17 @@ TIME_OUT = 10  # Максимальное время ожидания загру
 MAX_ERROR_COUNT = 3  # Максимальное количество попыток при появлении ошибок
 RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
 FILE_PATH = 'C:/Users/inoze/Downloads/'  # Путь для сохранения файлов
-
+# TODO: брать из переменной окружения
+# TODO: а лучше вообще не использовать :) работать через память
 
 def starting_browser():
     """Настройка и запуск браузера."""
     options = webdriver.ChromeOptions()
     # TODO: в конце - проверить работу в безоконном режиме (headless)
+    # TODO: аргументы браузера можно принимать через параметр функции
+    #  и при этом вычитывать их из переменных окружения,
+    #  чтобы локально проверять в обычном режиме, а на сервере запускать в headless
+    #  и при этом не трогать код ;)
     options.add_argument("window-size=800,600")
     browser = webdriver.Chrome(options=options)
     return browser
@@ -34,6 +43,8 @@ def waiting_picture(browser, picture_id, error_count=0):
     elif int(picture_size['height']) <= 40:
         sleep(1)
         error_count += 1
+        # TODO: рекурсия в данном случае избыточна и даже неудобна,
+        #  пришлось счетчик ошибок прокидывать, лучше сделать классический цикл
         waiting_picture(browser, picture_id, error_count)
 
 
@@ -44,6 +55,9 @@ def reading_captcha():
     """Разгадывание капчи."""
     captcha_file = {'file': open(f'{FILE_PATH}screenie.png', 'rb')}
     data = {'key': RUCAPTCHA_API_KEY, 'method': 'post'}
+    # TODO: лучше переделать на работу с json - удобнее будет)
+    #  можно взять готовый класс из основного проекта - он сделан как библиотека
+    #  и как раз получится не смешивать техническую часть и логическую в одном файле ;)
     response_post = requests.post('http://rucaptcha.com/in.php', files=captcha_file, data=data)
     if 'OK' in response_post.text:
         captcha_id = response_post.text.split('|')[1]
@@ -126,7 +140,7 @@ def visa_category_selection(browser, answers):
     ]
     tr_elements = browser.find_elements(By.TAG_NAME, 'tr')
     visa_categories = {i: tr_elements[i].text for i in range(len(tr_elements))}
-    visa_ind = None
+    visa_ind = None  # TODO: удалить строку, ниже во всех ветках переменная определяется
     try:
         visa_ind = [*visa_categories.values()].index(answers['visa_category'])
     except (ValueError, KeyError):
@@ -157,7 +171,7 @@ def visa_class_selection(browser, answers):
     table_elements = browser.find_elements(By.TAG_NAME, 'table')
     tr_elements = table_elements[1].find_elements(By.TAG_NAME, 'tr')
     visa_classes = {i: tr_elements[i].text for i in range(len(tr_elements))}
-    visa_ind = None
+    visa_ind = None  # TODO: удалить строку, ниже во всех ветках переменная определяется
     try:
         visa_ind = [*visa_classes.values()].index(answers['visa_class'])
     except (ValueError, KeyError):
@@ -178,6 +192,9 @@ def visa_class_selection(browser, answers):
 
 def answering_questions(browser, answers):
     """Ответы на вопросы."""
+    # TODO: можно лучше:
+    #  страницы все однотипные и вне зависимости от выбранной категории можем проверять
+    #  вопрос и давать на него ответ
     bottom_answer = {
         'YES': 'j_id0:SiteTemplate:j_id110:j_id177',
         'NO': 'j_id0:SiteTemplate:j_id110:j_id176'
@@ -245,6 +262,9 @@ def registration(browser):
 
 
 def getting_all_free_dates(browser):
+    # TODO: чтобы не зависеть от языка (может не быть в выборе русского)
+    #  предлагаю просто разбирать календарную страницу как есть
+    #  и по номерам месяцев формировать дату (месяц в параметре onclick сидит)
     free_dates = []
     months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
     next_year = date.today().year + 1
@@ -331,6 +351,8 @@ if __name__ == '__main__':
         'find_all_free_dates': True,
     }
 
+    # TODO: это все завернуть в функцию, например main,
+    #  которая принимает просто словарь ответов
     browser = starting_browser()
     browser, answers = authorization(browser, answers)
     Select(browser.find_element(By.NAME, 'j_id0:SiteTemplate:j_id14:j_id15:j_id26:j_id27:j_id28:j_id30')).select_by_visible_text('Russian')
