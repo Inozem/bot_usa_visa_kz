@@ -1,18 +1,9 @@
-<<<<<<< HEAD
-=======
-# общий совет: поставить автоматический форматтер, например, black,
-# линтер, например, flake8 и автоматический сортировщик импортов, например, isort
-# поможет устранить часть кода и часть кода превратить в более простые блоки
-
 from datetime import date
 from dotenv import load_dotenv, find_dotenv
->>>>>>> dcdfbea32285097bf19bc744275294fe2143a779
 import os
-from datetime import date
 from time import sleep
 
 import requests
-from dotenv import find_dotenv, load_dotenv
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
@@ -22,16 +13,11 @@ load_dotenv(find_dotenv())
 
 TIME_OUT = 10  # Максимальное время ожидания загрузки элемента (секунды)
 MAX_ERROR_COUNT = 3  # Максимальное количество попыток при появлении ошибок
-<<<<<<< HEAD
-RUCAPTCHA_API_KEY = os.getenv("RUCAPTCHA_API_KEY")
-FILE_PATH = "C:/Users/inoze/Downloads/"  # Путь для сохранения файлов
-
-=======
 RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
 FILE_PATH = 'C:/Users/inoze/Downloads/'  # Путь для сохранения файлов
 # TODO: брать из переменной окружения
 # TODO: а лучше вообще не использовать :) работать через память
->>>>>>> dcdfbea32285097bf19bc744275294fe2143a779
+
 
 def starting_browser():
     """Настройка и запуск браузера."""
@@ -61,26 +47,15 @@ def waiting_picture(browser, picture_id, error_count=0):
 # TODO: добавить везде аннотации типов
 # TODO 2: на вход получать картинку в памяти и разгадывать ее с помощью rucaptcha
 #  без сохранения в файл
-def reading_captcha():
+def reading_captcha(picture):
     """Разгадывание капчи."""
-<<<<<<< HEAD
-    captcha_file = {"file": open(f"{FILE_PATH}screenie.png", "rb")}
-    data = {"key": RUCAPTCHA_API_KEY, "method": "post"}
-    response_post = requests.post(
-        "http://rucaptcha.com/in.php", files=captcha_file, data=data
-    )
-    if "OK" in response_post.text:
-        captcha_id = response_post.text.split("|")[1]
-=======
-    captcha_file = {'file': open(f'{FILE_PATH}screenie.png', 'rb')}
-    data = {'key': RUCAPTCHA_API_KEY, 'method': 'post'}
+    data = {'key': RUCAPTCHA_API_KEY, 'method': 'base64', 'body': picture}
     # TODO: лучше переделать на работу с json - удобнее будет)
     #  можно взять готовый класс из основного проекта - он сделан как библиотека
     #  и как раз получится не смешивать техническую часть и логическую в одном файле ;)
-    response_post = requests.post('http://rucaptcha.com/in.php', files=captcha_file, data=data)
+    response_post = requests.post('http://rucaptcha.com/in.php', data=data)
     if 'OK' in response_post.text:
         captcha_id = response_post.text.split('|')[1]
->>>>>>> dcdfbea32285097bf19bc744275294fe2143a779
         print(captcha_id)
         response_get_text = ""
         for i in range(MAX_ERROR_COUNT + 1):
@@ -124,10 +99,12 @@ def authorization(browser, answers, error_count=0):
     # TODO: скриншот не производительно делать, нужно найти элемент img и в нем забрать ссылку
     #  эта ссылка - по сути закодированное изображение в (base64) - его в памяти (!)
     #  сохраняем и отправляем уже в сервис рекапчи
-    browser.find_element(By.ID, picture_id).screenshot(f"{FILE_PATH}screenie.png")
+    picture_element = browser.find_element(By.ID, picture_id)  # .screenshot(f"{FILE_PATH}screenie.png")
+    picture_base64 = picture_element.screenshot_as_base64
     browser.find_element(
-        By.ID, f"{element_id_or_name_part}recaptcha_response_field"
-    ).send_keys(reading_captcha())
+        By.ID,
+        f"{element_id_or_name_part}recaptcha_response_field"
+    ).send_keys(reading_captcha(picture_base64))
     answers.update(login_data)
     browser.find_element(By.ID, f"{element_id_or_name_part}loginButton").click()
     error_id_part = "error:j_id132:j_id133:0:j_id134:j_id135:j_id137"
@@ -180,7 +157,6 @@ def visa_category_selection(browser, answers):
     ]
     tr_elements = browser.find_elements(By.TAG_NAME, "tr")
     visa_categories = {i: tr_elements[i].text for i in range(len(tr_elements))}
-    visa_ind = None  # TODO: удалить строку, ниже во всех ветках переменная определяется
     try:
         visa_ind = [*visa_categories.values()].index(answers["visa_category"])
     except (ValueError, KeyError):
@@ -216,7 +192,6 @@ def visa_class_selection(browser, answers):
     table_elements = browser.find_elements(By.TAG_NAME, "table")
     tr_elements = table_elements[1].find_elements(By.TAG_NAME, "tr")
     visa_classes = {i: tr_elements[i].text for i in range(len(tr_elements))}
-    visa_ind = None  # TODO: удалить строку, ниже во всех ветках переменная определяется
     try:
         visa_ind = [*visa_classes.values()].index(answers["visa_class"])
     except (ValueError, KeyError):
@@ -462,20 +437,7 @@ def searching_free_date(browser, answers, error_count=0):
         return registration(browser)
 
 
-if __name__ == "__main__":
-    answers = {
-        "email": os.getenv("CGIFEDERAL_EMAIL"),
-        "password": os.getenv("CGIFEDERAL_PASSWORD"),
-        "city": os.getenv("CGIFEDERAL_CITY"),
-        "visa_category": os.getenv("CGIFEDERAL_VISA_CATEGORY"),
-        "visa_class": os.getenv("CGIFEDERAL_VISA_CLASS"),
-        "status": os.getenv("CGIFEDERAL_STATUS"),
-        "dates": os.getenv("CGIFEDERAL_DATES"),
-        "find_all_free_dates": True,
-    }
-
-    # TODO: это все завернуть в функцию, например main,
-    #  которая принимает просто словарь ответов
+def main(answers):
     browser = starting_browser()
     browser, answers = authorization(browser, answers)
 
@@ -501,30 +463,55 @@ if __name__ == "__main__":
 
     # Персональные данные введены / Далее
     browser.find_element(
-        By.NAME, "thePage:SiteTemplate:theForm:j_id1279"
+        By.NAME,
+        "thePage:SiteTemplate:theForm:j_id1279"
     ).click()
 
     # Члены семьи добавлены в список / Далее
     browser.find_element(
-        By.NAME, "j_id0:SiteTemplate:j_id856:continueBtn"
+        By.NAME,
+        "j_id0:SiteTemplate:j_id856:continueBtn"
     ).click()
 
     browser = answering_questions(browser, answers)
+
+    # Информация о доставке документов / Далее
     browser.find_element(
-        By.NAME, "thePage:SiteTemplate:theForm:Continue"
-    ).click()  # Информация о доставке документов
+        By.NAME,
+        "thePage:SiteTemplate:theForm:Continue"
+    ).click()
     sleep(5)
+
+    # Информация о визовом сборе (всплывающее окно) / Далее
     browser.find_element(
-        By.CLASS_NAME, "ui-button-text-only"
-    ).click()  # Информация о визовом сборе (всплывающее окно)
+        By.CLASS_NAME,
+        "ui-button-text-only"
+    ).click()
     sleep(5)
-    # browser.find_element(By.CLASS_NAME, 'ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only').click()  # Выбор способа оплаты (Не всплывает если оплачено)
+
+    # Регистрация номера платежа / Далее
     browser.find_element(
-        By.NAME, "j_id0:SiteTemplate:theForm:continue_btn"
-    ).click()  # Регистрация номера платежа
+        By.NAME,
+        "j_id0:SiteTemplate:theForm:continue_btn"
+    ).click()
+
     browser, answers = status_selection(browser, answers)
     if answers["find_all_free_dates"]:
-        print("\n".join(getting_all_free_dates(browser)))
+        return "\n".join(getting_all_free_dates(browser))
     else:
-        print(searching_free_date(browser, answers))
+        return searching_free_date(browser, answers)
+
+
+if __name__ == "__main__":
+    answers = {
+        "email": os.getenv("CGIFEDERAL_EMAIL"),
+        "password": os.getenv("CGIFEDERAL_PASSWORD"),
+        "city": os.getenv("CGIFEDERAL_CITY"),
+        "visa_category": os.getenv("CGIFEDERAL_VISA_CATEGORY"),
+        "visa_class": os.getenv("CGIFEDERAL_VISA_CLASS"),
+        "status": os.getenv("CGIFEDERAL_STATUS"),
+        "dates": os.getenv("CGIFEDERAL_DATES"),
+        "find_all_free_dates": True,
+    }
+    main(answers)
     sleep(600)
