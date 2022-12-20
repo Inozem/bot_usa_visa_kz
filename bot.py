@@ -89,7 +89,7 @@ def authorization(browser, answers, error_count=0):
         By.ID,
         f"{element_id_or_name_part}recaptcha_response_field"
     )
-    element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
+    sleep(10)  # element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
 
     answers.update(login_data)
 
@@ -100,9 +100,9 @@ def authorization(browser, answers, error_count=0):
     if error_id_part in browser.page_source:
         error_count += 1
         error_text = browser.find_element(
-            By.ID, f"{element_id_or_name_part}{error_id_part}"
+            By.ID,
+            f"{element_id_or_name_part}{error_id_part}"
         ).text
-        print(error_text)
         if "Captcha." in error_text and error_count < MAX_ERROR_COUNT:
             browser, answers = authorization(browser, answers, error_count)
         elif error_count >= MAX_ERROR_COUNT:
@@ -210,55 +210,31 @@ def visa_class_selection(browser, answers):
 
 def answering_questions(browser, answers):
     """Ответы на вопросы."""
-    # TODO: можно лучше:
-    #  страницы все однотипные и вне зависимости от выбранной категории можем проверять
-    #  вопрос и давать на него ответ
+    sleep(5)
+    current_url = browser.current_url
     bottom_answer = {
         "YES": "j_id0:SiteTemplate:j_id110:j_id177",
         "NO": "j_id0:SiteTemplate:j_id110:j_id176",
     }
-    if (
-        answers["visa_category"]
-        == "Виза B1/B2 (туризм, посещение родственников, деловые поездки и не срочное медицинское лечение)"
-    ):
+    questions_and_answers = {
+        "Вы старше 80 лет?": "NO",
+        "Вы младше 14 лет?": "NO",
+        "Оплатили ли Вы сбор SEVIS?": "YES",
+    }
+    while "selectdropboxquestions" in current_url:
+        question = browser.find_element(
+            By.CLASS_NAME,
+            "ui-state-highlight"
+        ).text.strip()
+        try:
+            answer = questions_and_answers[question]
+        except KeyError:
+            answer = ["YES", "NO"][
+                int(input(f"{question}\n 0 - YES\n 1 - NO\n"))
+            ]
+        browser.find_element(By.NAME, bottom_answer[answer]).click()
         sleep(5)
-        browser.find_element(
-            By.NAME, bottom_answer["NO"]
-        ).click()  # Вопрос: Вы старше 80 лет? (Нет)
-        browser.find_element(
-            By.NAME, bottom_answer["NO"]
-        ).click()  # Вопрос: Вы младше 14 лет? (Нет)
-        browser.find_element(
-            By.NAME, bottom_answer["NO"]
-        ).click()  # Вопрос: Виза еще действительна? (Нет)
-    elif (
-        answers["visa_category"]
-        == "Визы для студентов и участников программ обмена (первичные обращения и обращения без прохождения личного собеседования)"
-    ):
-        sleep(5)
-        browser.find_element(
-            By.NAME, bottom_answer["NO"]
-        ).click()  # Вопрос: Получали ли вы отказ? (Нет)
-        browser.find_element(
-            By.NAME, bottom_answer["YES"]
-        ).click()  # Вопрос: Оплатили ли Вы сбор SEVIS? (Да)
-        browser.find_element(
-            By.NAME, bottom_answer["NO"]
-        ).click()  # Вопрос: Вы старше 80 лет? (Нет)
-        browser.find_element(
-            By.NAME, bottom_answer["NO"]
-        ).click()  # Вопрос: Виза еще действительна? (Нет)
-    elif (
-        answers["visa_category"]
-        == "Визы для студентов и участников программ обмена (которым ранее было отказано в визе)"
-    ):
-        sleep(5)
-        browser.find_element(
-            By.NAME, bottom_answer["YES"]
-        ).click()  # Вопрос: Оплатили ли Вы сбор SEVIS? (Да)
-        browser.find_element(
-            By.NAME, bottom_answer["YES"]
-        ).click()  # Вопрос: Получали ли вы отказ? (Да)
+        current_url = browser.current_url
     return browser
 
 
@@ -274,7 +250,8 @@ def status_selection(browser, answers):
     except (ValueError, KeyError):
         input_text_part_1 = "Введите номер статуса:\n"
         input_text_part_2 = (
-            "\n".join([f"{ind} - {name}" for ind, name in statuses.items()]) + "\n"
+            "\n".join([f"{ind} - {name}" for ind, name in statuses.items()])
+            + "\n"
         )
         status_ind = int(input(f"{input_text_part_1}{input_text_part_2}"))
     try:
@@ -289,7 +266,8 @@ def status_selection(browser, answers):
 
 def registration(browser):
     browser.find_element(
-        By.NAME, "thePage:SiteTemplate:theForm:j_id203:0:j_id205"
+        By.NAME,
+        "thePage:SiteTemplate:theForm:j_id203:0:j_id205"
     ).click()
     sleep(5)  # Ожидание обновления данных на сайте
 
@@ -302,13 +280,20 @@ def registration(browser):
     info_title = browser.find_element(By.CLASS_NAME, "apptSchedMsg").text
     info = [info_title]
     try:
-        info_string_titles = ["Адрес:", "Дата собеседования:", "Время собеседования:"]
+        info_string_titles = [
+            "Адрес:",
+            "Дата собеседования:",
+            "Время собеседования:"
+        ]
         info_table = browser.find_element(By.CLASS_NAME, "appTable")
         info_table_strings = info_table.find_elements(By.TAG_NAME, "tr")
         for string in info_table_strings:
             for title in info_string_titles:
                 if title in string.text:
-                    info_string_value = string.find_elements(By.TAG_NAME, "td")[1].text
+                    info_string_value = string.find_elements(
+                        By.TAG_NAME,
+                        "td"
+                    )[1].text
                     info.append(f"{title} {info_string_value}")
     except NoSuchElementException:
         info.append(
