@@ -4,7 +4,7 @@ import typing as ty
 
 import requests
 
-from apps.rucaptcha.exceptions import RuCaptchaRequestError, RuCaptchaResponseError, RuCaptchaTimeoutError
+from rucaptcha.exceptions import RuCaptchaRequestError, RuCaptchaResponseError, RuCaptchaTimeoutError
 
 logger = logging.getLogger(__name__)
 

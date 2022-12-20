@@ -1,22 +1,21 @@
-from datetime import date
-from dotenv import load_dotenv, find_dotenv
 import os
+from datetime import date
 from time import sleep
 
-import requests
+from dotenv import find_dotenv, load_dotenv
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
+
+from rucaptcha import RuCaptcha
+from rucaptcha.exceptions import RuCaptchaError
 
 load_dotenv(find_dotenv())
 
 TIME_OUT = 10  # Максимальное время ожидания загрузки элемента (секунды)
 MAX_ERROR_COUNT = 3  # Максимальное количество попыток при появлении ошибок
 RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
-FILE_PATH = 'C:/Users/inoze/Downloads/'  # Путь для сохранения файлов
-# TODO: брать из переменной окружения
-# TODO: а лучше вообще не использовать :) работать через память
 
 
 def starting_browser():
@@ -33,45 +32,30 @@ def starting_browser():
 
 
 def waiting_picture(browser, picture_id, error_count=0):
-    picture_size = browser.find_element(By.ID, picture_id).size
-    if error_count >= TIME_OUT:
-        raise Exception("Проблемы на стороне сервиса. Капча. Не прогружается картинка.")
-    elif int(picture_size["height"]) <= 40:
-        sleep(1)
-        error_count += 1
-        # TODO: рекурсия в данном случае избыточна и даже неудобна,
-        #  пришлось счетчик ошибок прокидывать, лучше сделать классический цикл
-        waiting_picture(browser, picture_id, error_count)
+    """Ожидание загрузки картинки с капчой"""
+    for error_count in range(TIME_OUT):
+        picture_size = browser.find_element(By.ID, picture_id).size
+        if error_count >= TIME_OUT:
+            raise Exception("Проблемы на стороне сервиса. "
+                            "Капча. Не прогружается картинка.")
+        elif int(picture_size["height"]) <= 40:
+            sleep(1)
 
 
 # TODO: добавить везде аннотации типов
-# TODO 2: на вход получать картинку в памяти и разгадывать ее с помощью rucaptcha
-#  без сохранения в файл
 def reading_captcha(picture):
     """Разгадывание капчи."""
-    data = {'key': RUCAPTCHA_API_KEY, 'method': 'base64', 'body': picture}
-    # TODO: лучше переделать на работу с json - удобнее будет)
-    #  можно взять готовый класс из основного проекта - он сделан как библиотека
-    #  и как раз получится не смешивать техническую часть и логическую в одном файле ;)
-    response_post = requests.post('http://rucaptcha.com/in.php', data=data)
-    if 'OK' in response_post.text:
-        captcha_id = response_post.text.split('|')[1]
-        print(captcha_id)
-        response_get_text = ""
-        for i in range(MAX_ERROR_COUNT + 1):
-            if i == MAX_ERROR_COUNT:
-                raise Exception(
-                    f"Проблемы на стороне сервиса. Капча. {response_get_text}"
-                )
-            if "OK" not in response_get_text:
-                sleep(5)
-                response_get = requests.get(
-                    f"http://2captcha.com/res.php?key={RUCAPTCHA_API_KEY}&action=get&id={captcha_id}"
-                )
-                response_get_text = response_get.text
-                print(response_get_text)
-            else:
-                return response_get_text.split("|")[1]
+    captcha = None
+    answer_holder = RuCaptcha(RUCAPTCHA_API_KEY).solve(picture)
+    for _ in range(MAX_ERROR_COUNT):
+        try:
+            captcha = answer_holder.wait_answer()
+        except RuCaptchaError:
+            pass
+    if not captcha:
+        raise RuCaptchaError("Проблемы на стороне сервиса. Капча. "
+                             "Не удалось разгадать.")
+    return captcha
 
 
 def authorization(browser, answers, error_count=0):
@@ -87,26 +71,31 @@ def authorization(browser, answers, error_count=0):
     element_id_or_name_part = (
         "loginPage:SiteTemplate:siteLogin:loginComponent:loginForm:"
     )
-    browser.find_element(By.ID, f"{element_id_or_name_part}username").send_keys(
-        login_data["email"]
-    )
-    browser.find_element(By.ID, f"{element_id_or_name_part}password").send_keys(
-        login_data["password"]
-    )
+    element_username_id = f"{element_id_or_name_part}username"
+    element_username = browser.find_element(By.ID, element_username_id)
+    element_username.send_keys(login_data["email"])
+
+    element_password_id = f"{element_id_or_name_part}password"
+    element_password = browser.find_element(By.ID, element_password_id)
+    element_password.send_keys(login_data["password"])
+
     browser.find_element(By.NAME, f"{element_id_or_name_part}j_id167").click()
-    picture_id = f"{element_id_or_name_part}theId"
-    waiting_picture(browser, picture_id)
-    # TODO: скриншот не производительно делать, нужно найти элемент img и в нем забрать ссылку
-    #  эта ссылка - по сути закодированное изображение в (base64) - его в памяти (!)
-    #  сохраняем и отправляем уже в сервис рекапчи
-    picture_element = browser.find_element(By.ID, picture_id)  # .screenshot(f"{FILE_PATH}screenie.png")
-    picture_base64 = picture_element.screenshot_as_base64
-    browser.find_element(
+
+    element_picture_id = f"{element_id_or_name_part}theId"
+    waiting_picture(browser, element_picture_id)
+    element_picture = browser.find_element(By.ID, element_picture_id)
+    picture_base64 = element_picture.screenshot_as_base64
+    element_recaptcha_response_field = browser.find_element(
         By.ID,
         f"{element_id_or_name_part}recaptcha_response_field"
-    ).send_keys(reading_captcha(picture_base64))
+    )
+    element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
+
     answers.update(login_data)
-    browser.find_element(By.ID, f"{element_id_or_name_part}loginButton").click()
+
+    element_login_button_id = f"{element_id_or_name_part}loginButton"
+    browser.find_element(By.ID, element_login_button_id).click()
+
     error_id_part = "error:j_id132:j_id133:0:j_id134:j_id135:j_id137"
     if error_id_part in browser.page_source:
         error_count += 1
@@ -135,7 +124,8 @@ def city_selection(browser, answers):
             "Введите номер города, в котором хотите пройти собеседование:\n"
         )
         input_text_part_2 = (
-            "\n".join([f"{ind} - {name}" for ind, name in cities.items()]) + "\n"
+            "\n".join([f"{ind} - {name}" for ind, name in cities.items()])
+            + "\n"
         )
         city_ind = int(input(f"{input_text_part_1}{input_text_part_2}"))
     try:
@@ -151,9 +141,12 @@ def city_selection(browser, answers):
 def visa_category_selection(browser, answers):
     """Выбор категории визы."""
     visa_category_supported = [
-        "Виза B1/B2 (туризм, посещение родственников, деловые поездки и не срочное медицинское лечение)",
-        "Визы для студентов и участников программ обмена (первичные обращения и обращения без прохождения личного собеседования)",
-        "Визы для студентов и участников программ обмена (которым ранее было отказано в визе)",
+        ("Виза B1/B2 (туризм, посещение родственников, деловые поездки "
+         "и не срочное медицинское лечение)"),
+        ("Визы для студентов и участников программ обмена (первичные "
+         "обращения и обращения без прохождения личного собеседования)"),
+        ("Визы для студентов и участников программ обмена "
+         "(которым ранее было отказано в визе)"),
     ]
     tr_elements = browser.find_elements(By.TAG_NAME, "tr")
     visa_categories = {i: tr_elements[i].text for i in range(len(tr_elements))}
@@ -186,7 +179,8 @@ def visa_class_selection(browser, answers):
         "B1 - Виза для деловых поездок",
         "B1/B2 - Виза для деловых и туристических поездок",
         "B2 - Виза для туристических поездок и лечения",
-        "F-1 - Студенческая виза для академических или языковых программ обучения",
+        ("F-1 - Студенческая виза для академических "
+         "или языковых программ обучения"),
         "F-2 - Виза для супруга(и)/ребенка держателя визы F-1",
     ]
     table_elements = browser.find_elements(By.TAG_NAME, "table")
@@ -271,7 +265,9 @@ def answering_questions(browser, answers):
 def status_selection(browser, answers):
     """Выбор статуса."""
     tr_elements = browser.find_elements(By.TAG_NAME, "tr")[1:]
-    statuses = {i: tr_elements[i].text.split(" ")[0] for i in range(len(tr_elements))}
+    statuses = {
+        i: tr_elements[i].text.split(" ")[0] for i in range(len(tr_elements))
+    }
     status_ind = None
     try:
         status_ind = [*statuses.values()].index(answers["status"])
@@ -296,9 +292,13 @@ def registration(browser):
         By.NAME, "thePage:SiteTemplate:theForm:j_id203:0:j_id205"
     ).click()
     sleep(5)  # Ожидание обновления данных на сайте
+
+    # Отправка заявки на собеседование
     browser.find_element(
-        By.NAME, "thePage:SiteTemplate:theForm:addItem"
-    ).click()  # Отправка заявки на собеседование
+        By.NAME,
+        "thePage:SiteTemplate:theForm:addItem"
+    ).click()
+
     info_title = browser.find_element(By.CLASS_NAME, "apptSchedMsg").text
     info = [info_title]
     try:
@@ -371,13 +371,20 @@ def getting_all_free_dates(browser):
 
 def searching_free_date(browser, answers, error_count=0):
     """Поиск свободных дат."""
-    picture_id = "thePage:SiteTemplate:recaptcha_form:captcha_image"
-    waiting_picture(browser, picture_id)
-    browser.find_element(By.ID, picture_id).screenshot(f"{FILE_PATH}screenie.png")
+    element_picture_id = "thePage:SiteTemplate:recaptcha_form:captcha_image"
+    waiting_picture(browser, element_picture_id)
+    element_picture = browser.find_element(By.ID, element_picture_id)
+    picture_base64 = element_picture.screenshot_as_base64
+    element_recaptcha_response_field = browser.find_element(
+        By.ID,
+        "thePage:SiteTemplate:recaptcha_form:recaptcha_response_field"
+    )
+    element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
+
     browser.find_element(
-        By.ID, "thePage:SiteTemplate:recaptcha_form:recaptcha_response_field"
-    ).send_keys(reading_captcha())
-    browser.find_element(By.NAME, "thePage:SiteTemplate:recaptcha_form:j_id130").click()
+        By.NAME,
+        "thePage:SiteTemplate:recaptcha_form:j_id130"
+    ).click()
     if (
         "Перепечатайте слова отображенные ниже" in browser.page_source
         and error_count < MAX_ERROR_COUNT
