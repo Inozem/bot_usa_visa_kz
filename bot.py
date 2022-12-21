@@ -4,7 +4,7 @@ from time import sleep
 
 from dotenv import find_dotenv, load_dotenv
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 
@@ -16,6 +16,18 @@ load_dotenv(find_dotenv())
 TIME_OUT = 10  # Максимальное время ожидания загрузки элемента (секунды)
 MAX_ERROR_COUNT = 3  # Максимальное количество попыток при появлении ошибок
 RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
+
+
+def waiting_new_page(link):
+    """Ожидание обновления страницы."""
+    waiting_update = True
+    while waiting_update:
+        try:
+            link.find_element(By.ID, "does not matter")
+        except NoSuchElementException:
+            sleep(1)
+        except StaleElementReferenceException:
+            waiting_update = False
 
 
 def starting_browser():
@@ -133,7 +145,6 @@ def city_selection(browser, answers):
     except IndexError:
         raise Exception(f"Город под номером {city_ind} недоступен")
     answers.update({"city": cities[city_ind]})
-    sleep(5)
     browser.find_element(By.NAME, "j_id0:SiteTemplate:j_id112:j_id169").click()
     return browser, answers
 
@@ -168,7 +179,6 @@ def visa_category_selection(browser, answers):
     except IndexError:
         raise Exception(f"Нет категории с номером {visa_ind}")
     answers.update({"visa_category": visa_categories[visa_ind]})
-    sleep(5)
     browser.find_element(By.NAME, "j_id0:SiteTemplate:j_id109:j_id166").click()
     return browser, answers
 
@@ -203,23 +213,16 @@ def visa_class_selection(browser, answers):
     except IndexError:
         raise Exception(f"Нет категории с номером {visa_ind}")
     answers.update({"visa_class": visa_classes[visa_ind]})
-    sleep(5)
     browser.find_element(By.NAME, "j_id0:SiteTemplate:theForm:j_id178").click()
     return browser, answers
 
 
 def answering_questions(browser, answers):
     """Ответы на вопросы."""
-    sleep(5)
     current_url = browser.current_url
     bottom_answer = {
         "YES": "j_id0:SiteTemplate:j_id110:j_id177",
         "NO": "j_id0:SiteTemplate:j_id110:j_id176",
-    }
-    questions_and_answers = {
-        "Вы старше 80 лет?": "NO",
-        "Вы младше 14 лет?": "NO",
-        "Оплатили ли Вы сбор SEVIS?": "YES",
     }
     while "selectdropboxquestions" in current_url:
         question = browser.find_element(
@@ -227,13 +230,14 @@ def answering_questions(browser, answers):
             "ui-state-highlight"
         ).text.strip()
         try:
-            answer = questions_and_answers[question]
+            answer = answers[question]
         except KeyError:
             answer = ["YES", "NO"][
                 int(input(f"{question}\n 0 - YES\n 1 - NO\n"))
             ]
-        browser.find_element(By.NAME, bottom_answer[answer]).click()
-        sleep(5)
+        link = browser.find_element(By.NAME, bottom_answer[answer])
+        link.click()
+        waiting_new_page(link)
         current_url = browser.current_url
     return browser
 
@@ -259,17 +263,17 @@ def status_selection(browser, answers):
     except IndexError:
         raise Exception(f"Статус под номером {status_ind} недоступен")
     answers.update({"status": statuses[status_ind]})
-    sleep(5)
     browser.find_element(By.NAME, "j_id0:SiteTemplate:theForm:j_id170").click()
     return browser, answers
 
 
 def registration(browser):
-    browser.find_element(
+    link = browser.find_element(
         By.NAME,
         "thePage:SiteTemplate:theForm:j_id203:0:j_id205"
-    ).click()
-    sleep(5)  # Ожидание обновления данных на сайте
+    )
+    link.click()
+    waiting_new_page(link)
 
     # Отправка заявки на собеседование
     browser.find_element(
@@ -460,26 +464,30 @@ def main(answers):
     ).click()
 
     # Члены семьи добавлены в список / Далее
-    browser.find_element(
+    link = browser.find_element(
         By.NAME,
         "j_id0:SiteTemplate:j_id856:continueBtn"
-    ).click()
+    )
+    link.click()
+    waiting_new_page(link)
 
     browser = answering_questions(browser, answers)
 
     # Информация о доставке документов / Далее
-    browser.find_element(
+    link = browser.find_element(
         By.NAME,
         "thePage:SiteTemplate:theForm:Continue"
-    ).click()
-    sleep(5)
+    )
+    link.click()
+    waiting_new_page(link)
 
     # Информация о визовом сборе (всплывающее окно) / Далее
-    browser.find_element(
+    link = browser.find_element(
         By.CLASS_NAME,
         "ui-button-text-only"
-    ).click()
-    sleep(5)
+    )
+    link.click()
+    waiting_new_page(link)
 
     # Регистрация номера платежа / Далее
     browser.find_element(
