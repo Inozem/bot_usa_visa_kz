@@ -43,7 +43,7 @@ def starting_browser():
     return browser
 
 
-def waiting_picture(browser, picture_id, error_count=0):
+def waiting_picture(browser, picture_id):
     """Ожидание загрузки картинки с капчой"""
     for error_count in range(TIME_OUT):
         picture_size = browser.find_element(By.ID, picture_id).size
@@ -269,6 +269,23 @@ def status_selection(browser, answers):
     return browser, answers
 
 
+def reading_captcha_page(browser):
+    element_id_or_name_part = "thePage:SiteTemplate:recaptcha_form:"
+    element_picture_id = f"{element_id_or_name_part}captcha_image"
+    waiting_picture(browser, element_picture_id)
+    element_picture = browser.find_element(By.ID, element_picture_id)
+    picture_base64 = element_picture.screenshot_as_base64
+    element_recaptcha_response_field = browser.find_element(
+        By.ID,
+        f"{element_id_or_name_part}recaptcha_response_field"
+    )
+    element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
+    link = browser.find_element(By.NAME, f"{element_id_or_name_part}j_id130")
+    link.click()
+    waiting_new_page(link)
+    return browser
+
+
 def registration(browser):
     element_name_part = "thePage:SiteTemplate:theForm:"
     link = browser.find_element(
@@ -313,20 +330,6 @@ def getting_all_free_dates(browser):
     # TODO: чтобы не зависеть от языка (может не быть в выборе русского)
     #  предлагаю просто разбирать календарную страницу как есть
     #  и по номерам месяцев формировать дату (месяц в параметре onclick сидит)
-    element_id_or_name_part = "thePage:SiteTemplate:recaptcha_form:"
-    element_picture_id = f"{element_id_or_name_part}captcha_image"
-    waiting_picture(browser, element_picture_id)
-    element_picture = browser.find_element(By.ID, element_picture_id)
-    picture_base64 = element_picture.screenshot_as_base64
-    element_recaptcha_response_field = browser.find_element(
-        By.ID,
-        f"{element_id_or_name_part}recaptcha_response_field"
-    )
-    element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
-    link = browser.find_element(By.NAME, f"{element_id_or_name_part}j_id130")
-    link.click()
-    waiting_new_page(link)
-
     free_dates = []
     months = [
         "Январь",
@@ -374,20 +377,6 @@ def getting_all_free_dates(browser):
 
 def searching_free_date(browser, answers):
     """Поиск свободных дат."""
-    element_id_or_name_part = "thePage:SiteTemplate:recaptcha_form:"
-    element_picture_id = f"{element_id_or_name_part}captcha_image"
-    waiting_picture(browser, element_picture_id)
-    element_picture = browser.find_element(By.ID, element_picture_id)
-    picture_base64 = element_picture.screenshot_as_base64
-    element_recaptcha_response_field = browser.find_element(
-        By.ID,
-        f"{element_id_or_name_part}recaptcha_response_field"
-    )
-    element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
-    link = browser.find_element(By.NAME, f"{element_id_or_name_part}j_id130")
-    link.click()
-    waiting_new_page(link)
-
     try:
         months = [
             "Январь",
@@ -514,6 +503,8 @@ def main(answers):
 
     if first_interview:
         browser, answers = first_appointment(browser, answers)
+
+    browser = reading_captcha_page(browser)
 
     if answers["find_all_free_dates"]:
         return "\n".join(getting_all_free_dates(browser))
