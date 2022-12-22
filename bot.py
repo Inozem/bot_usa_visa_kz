@@ -323,7 +323,9 @@ def getting_all_free_dates(browser):
         f"{element_id_or_name_part}recaptcha_response_field"
     )
     element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
-    browser.find_element(By.NAME, f"{element_id_or_name_part}j_id130").click()
+    link = browser.find_element(By.NAME, f"{element_id_or_name_part}j_id130")
+    link.click()
+    waiting_new_page(link)
 
     free_dates = []
     months = [
@@ -382,7 +384,9 @@ def searching_free_date(browser, answers):
         f"{element_id_or_name_part}recaptcha_response_field"
     )
     element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
-    browser.find_element(By.NAME, f"{element_id_or_name_part}j_id130").click()
+    link = browser.find_element(By.NAME, f"{element_id_or_name_part}j_id130")
+    link.click()
+    waiting_new_page(link)
 
     try:
         months = [
