@@ -166,8 +166,9 @@ def visa_category_selection(browser, answers):
     except (ValueError, KeyError):
         input_text_part_1 = "Выберите номер визовой категории:\n"
         input_text_part_2 = (
-            "\n".join([f"{ind} - {type}" for ind, type in visa_categories.items()])
-            + "\n"
+            "\n".join([
+                f"{ind} - {type}" for ind, type in visa_categories.items()
+            ]) + "\n"
         )
         visa_ind = int(input(f"{input_text_part_1}{input_text_part_2}"))
     try:
@@ -201,7 +202,9 @@ def visa_class_selection(browser, answers):
     except (ValueError, KeyError):
         input_text_part_1 = "Выберите номер визового класса:\n"
         input_text_part_2 = (
-            "\n".join([f"{ind} - {type}" for ind, type in visa_classes.items()]) + "\n"
+            "\n".join([
+                f"{ind} - {type}" for ind, type in visa_classes.items()
+            ]) + "\n"
         )
         visa_ind = int(input(f"{input_text_part_1}{input_text_part_2}"))
     try:
@@ -248,7 +251,6 @@ def status_selection(browser, answers):
     statuses = {
         i: tr_elements[i].text.split(" ")[0] for i in range(len(tr_elements))
     }
-    status_ind = None
     try:
         status_ind = [*statuses.values()].index(answers["status"])
     except (ValueError, KeyError):
@@ -268,18 +270,16 @@ def status_selection(browser, answers):
 
 
 def registration(browser):
+    element_name_part = "thePage:SiteTemplate:theForm:"
     link = browser.find_element(
         By.NAME,
-        "thePage:SiteTemplate:theForm:j_id203:0:j_id205"
+        f"{element_name_part}j_id203:0:j_id205"
     )
     link.click()
     waiting_new_page(link)
 
     # Отправка заявки на собеседование
-    browser.find_element(
-        By.NAME,
-        "thePage:SiteTemplate:theForm:addItem"
-    ).click()
+    browser.find_element(By.NAME, f"{element_name_part}addItem").click()
 
     info_title = browser.find_element(By.CLASS_NAME, "apptSchedMsg").text
     info = [info_title]
@@ -313,6 +313,18 @@ def getting_all_free_dates(browser):
     # TODO: чтобы не зависеть от языка (может не быть в выборе русского)
     #  предлагаю просто разбирать календарную страницу как есть
     #  и по номерам месяцев формировать дату (месяц в параметре onclick сидит)
+    element_id_or_name_part = "thePage:SiteTemplate:recaptcha_form:"
+    element_picture_id = f"{element_id_or_name_part}captcha_image"
+    waiting_picture(browser, element_picture_id)
+    element_picture = browser.find_element(By.ID, element_picture_id)
+    picture_base64 = element_picture.screenshot_as_base64
+    element_recaptcha_response_field = browser.find_element(
+        By.ID,
+        f"{element_id_or_name_part}recaptcha_response_field"
+    )
+    element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
+    browser.find_element(By.NAME, f"{element_id_or_name_part}j_id130").click()
+
     free_dates = []
     months = [
         "Январь",
@@ -358,30 +370,19 @@ def getting_all_free_dates(browser):
     return free_dates
 
 
-def searching_free_date(browser, answers, error_count=0):
+def searching_free_date(browser, answers):
     """Поиск свободных дат."""
-    element_picture_id = "thePage:SiteTemplate:recaptcha_form:captcha_image"
+    element_id_or_name_part = "thePage:SiteTemplate:recaptcha_form:"
+    element_picture_id = f"{element_id_or_name_part}captcha_image"
     waiting_picture(browser, element_picture_id)
     element_picture = browser.find_element(By.ID, element_picture_id)
     picture_base64 = element_picture.screenshot_as_base64
     element_recaptcha_response_field = browser.find_element(
         By.ID,
-        "thePage:SiteTemplate:recaptcha_form:recaptcha_response_field"
+        f"{element_id_or_name_part}recaptcha_response_field"
     )
     element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
-
-    browser.find_element(
-        By.NAME,
-        "thePage:SiteTemplate:recaptcha_form:j_id130"
-    ).click()
-    if (
-        "Перепечатайте слова отображенные ниже" in browser.page_source
-        and error_count < MAX_ERROR_COUNT
-    ):
-        error_count += 1
-        browser, answers = searching_free_date(browser, answers, error_count)
-    elif error_count >= MAX_ERROR_COUNT:
-        raise Exception("Проблемы на стороне сервиса. Капча.")
+    browser.find_element(By.NAME, f"{element_id_or_name_part}j_id130").click()
 
     try:
         months = [
@@ -433,20 +434,7 @@ def searching_free_date(browser, answers, error_count=0):
         return registration(browser)
 
 
-def main(answers):
-    browser = starting_browser()
-    browser, answers = authorization(browser, answers)
-
-    # Выбор русского языка
-    Select(
-        browser.find_element(
-            By.NAME,
-            "j_id0:SiteTemplate:j_id14:j_id15:j_id26:j_id27:j_id28:j_id30"
-        )
-    ).select_by_visible_text("Russian")
-
-    # Новое обращение / Запись на собеседование
-    browser.find_elements(By.TAG_NAME, "a")[2].click()
+def first_appointment(browser, answers):
 
     # Выбор неиммиграционной визы (по умолчанию)
     browser.find_element(
@@ -496,6 +484,33 @@ def main(answers):
     ).click()
 
     browser, answers = status_selection(browser, answers)
+
+
+def main(answers):
+    browser = starting_browser()
+    browser, answers = authorization(browser, answers)
+
+    # Выбор русского языка
+    Select(
+        browser.find_element(
+            By.NAME,
+            "j_id0:SiteTemplate:j_id14:j_id15:j_id26:j_id27:j_id28:j_id30"
+        )
+    ).select_by_visible_text("Russian")
+
+    # Новое обращение / Запись на собеседование
+    link = browser.find_elements(By.TAG_NAME, "a")[2]
+    first_interview = "j_id61" in link.get_attribute("onclick")
+    if not first_interview:
+        visa_info = browser.find_elements(By.CLASS_NAME, "tile")[0]
+        city = visa_info.find_elements(By.CLASS_NAME, "stylizedLabel")[0].text
+        answers["city"] = city
+    link.click()
+    waiting_new_page(link)
+
+    if first_interview:
+        browser, answers = first_appointment(browser, answers)
+
     if answers["find_all_free_dates"]:
         return "\n".join(getting_all_free_dates(browser))
     else:
