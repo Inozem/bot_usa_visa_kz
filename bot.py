@@ -15,6 +15,7 @@ load_dotenv(find_dotenv())
 
 TIME_OUT = 10  # Максимальное время ожидания загрузки элемента (секунды)
 MAX_ERROR_COUNT = 3  # Максимальное количество попыток при появлении ошибок
+NUMBER_OF_MONTHS_TO_CHECK = 13  # В скольких месяцах искать свободные даты
 RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
 
 
@@ -331,47 +332,20 @@ def getting_all_free_dates(browser):
     #  предлагаю просто разбирать календарную страницу как есть
     #  и по номерам месяцев формировать дату (месяц в параметре onclick сидит)
     free_dates = []
-    months = [
-        "Январь",
-        "Февраль",
-        "Март",
-        "Апрель",
-        "Май",
-        "Июнь",
-        "Июль",
-        "Август",
-        "Сентябрь",
-        "Октябрь",
-        "Ноябрь",
-        "Декабрь",
-    ]
-    next_year = date.today().year + 1
-    next_month = (date.today().month + 1) % 12
-    this_day = date.today().day
-    last_free_date = date(next_year, next_month, this_day)
-    too_late = False
-    while not too_late:
+    for _ in range(NUMBER_OF_MONTHS_TO_CHECK):
         calendar_first_month = browser.find_element(
-            By.CLASS_NAME, "ui-datepicker-group-first"
+            By.CLASS_NAME,
+            "ui-datepicker-group-first"
         )
-        month, year = calendar_first_month.find_element(
-            By.CLASS_NAME, "ui-datepicker-header"
-        ).text.split(" ")
-        month = months.index(month.split("\n")[1]) + 1
-        year = int(year)
-        weeks = calendar_first_month.find_elements(By.TAG_NAME, "tr")
-        for week in weeks:
-            days = week.find_elements(By.TAG_NAME, "td")
-            for day in days:
-                try:
-                    day.find_element(By.TAG_NAME, "a")
-                    checking_date = date(year, month, int(day.text))
-                    free_dates.append(checking_date.strftime("%d.%m.%Y"))
-                    if checking_date >= last_free_date:
-                        too_late = True
-                except NoSuchElementException:
-                    pass
-        browser.find_element(By.CLASS_NAME, "ui-datepicker-next").click()
+        days = calendar_first_month.find_elements(By.TAG_NAME, "td")
+        for day in days:
+            if free_date := day.get_attribute("onclick"):
+                month, year = list(map(int, free_date.split(",")[1:3]))
+                checking_date = date(year, month, int(day.text))
+                free_dates.append(checking_date.strftime("%d.%m.%Y"))
+        link = browser.find_element(By.CLASS_NAME, "ui-datepicker-next")
+        link.click()
+        waiting_new_page(link)
     return free_dates
 
 
