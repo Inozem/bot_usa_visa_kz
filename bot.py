@@ -469,8 +469,6 @@ def main(answers: Dict) -> str:
         visa_info = browser.find_elements(By.CLASS_NAME, "tile")[0]
         city = visa_info.find_elements(By.CLASS_NAME, "stylizedLabel")[0].text
         answers["city"] = city
-    print(type(link))
-    sleep(60)
     link.click()
     waiting_new_page(link)
 
