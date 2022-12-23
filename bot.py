@@ -1,10 +1,13 @@
 import os
 from datetime import date
 from time import sleep
+from typing import Dict, List, Tuple
 
 from dotenv import find_dotenv, load_dotenv
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException
+from selenium.common.exceptions import (NoSuchElementException,
+                                        StaleElementReferenceException)
+from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 
@@ -31,7 +34,7 @@ def waiting_new_page(link):
             waiting_update = False
 
 
-def starting_browser():
+def starting_browser() -> WebDriver:
     """Настройка и запуск браузера."""
     options = webdriver.ChromeOptions()
     # TODO: в конце - проверить работу в безоконном режиме (headless)
@@ -44,7 +47,7 @@ def starting_browser():
     return browser
 
 
-def waiting_picture(browser, picture_id):
+def waiting_picture(browser: WebDriver, picture_id: str) -> None:
     """Ожидание загрузки картинки с капчой"""
     for error_count in range(TIME_OUT):
         picture_size = browser.find_element(By.ID, picture_id).size
@@ -56,7 +59,7 @@ def waiting_picture(browser, picture_id):
 
 
 # TODO: добавить везде аннотации типов
-def reading_captcha(picture):
+def reading_captcha(picture: str) -> str:
     """Разгадывание капчи."""
     captcha = None
     answer_holder = RuCaptcha(RUCAPTCHA_API_KEY).solve(picture)
@@ -71,7 +74,10 @@ def reading_captcha(picture):
     return captcha
 
 
-def authorization(browser, answers, error_count=0):
+def authorization(browser: WebDriver,
+                  answers: Dict,
+                  error_count: int = 0
+                  ) -> Tuple[WebDriver, Dict]:
     """Авторизация."""
     required_params = {
         "email": "Введите адрес электронной почты: \n",
@@ -125,7 +131,9 @@ def authorization(browser, answers, error_count=0):
     return browser, answers
 
 
-def city_selection(browser, answers):
+def city_selection(browser: WebDriver,
+                   answers: Dict
+                   ) -> Tuple[WebDriver, Dict]:
     """Выбор города."""
     tr_elements = browser.find_elements(By.TAG_NAME, "tr")
     cities = {i: tr_elements[i].text for i in range(len(tr_elements))}
@@ -150,7 +158,9 @@ def city_selection(browser, answers):
     return browser, answers
 
 
-def visa_category_selection(browser, answers):
+def visa_category_selection(browser: WebDriver,
+                            answers: Dict
+                            ) -> Tuple[WebDriver, Dict]:
     """Выбор категории визы."""
     visa_category_supported = [
         ("Виза B1/B2 (туризм, посещение родственников, деловые поездки "
@@ -185,7 +195,9 @@ def visa_category_selection(browser, answers):
     return browser, answers
 
 
-def visa_class_selection(browser, answers):
+def visa_class_selection(browser: WebDriver,
+                         answers: Dict
+                         ) -> Tuple[WebDriver, Dict]:
     """Выбор класса визы."""
     visa_class_supported = [
         "B1 - Виза для деловых поездок",
@@ -221,7 +233,7 @@ def visa_class_selection(browser, answers):
     return browser, answers
 
 
-def answering_questions(browser, answers):
+def answering_questions(browser: WebDriver, answers: Dict) -> WebDriver:
     """Ответы на вопросы."""
     current_url = browser.current_url
     bottom_answer = {
@@ -246,7 +258,9 @@ def answering_questions(browser, answers):
     return browser
 
 
-def status_selection(browser, answers):
+def status_selection(browser: WebDriver,
+                     answers: Dict
+                     ) -> Tuple[WebDriver, Dict]:
     """Выбор статуса."""
     tr_elements = browser.find_elements(By.TAG_NAME, "tr")[1:]
     statuses = {
@@ -270,7 +284,8 @@ def status_selection(browser, answers):
     return browser, answers
 
 
-def reading_captcha_page(browser):
+def reading_captcha_page(browser: WebDriver) -> WebDriver:
+    """Обработка страницы с капчей."""
     element_id_or_name_part = "thePage:SiteTemplate:recaptcha_form:"
     element_picture_id = f"{element_id_or_name_part}captcha_image"
     waiting_picture(browser, element_picture_id)
@@ -287,7 +302,8 @@ def reading_captcha_page(browser):
     return browser
 
 
-def getting_all_free_dates(browser):
+def getting_all_free_dates(browser: WebDriver) -> List:
+    """Получение списка всех свободных для записи дат."""
     free_dates = []
     for _ in range(NUMBER_OF_MONTHS_TO_CHECK):
         calendar_first_month = browser.find_element(
@@ -306,7 +322,8 @@ def getting_all_free_dates(browser):
     return free_dates
 
 
-def registration(browser):
+def registration(browser: WebDriver) -> str:
+    """Регистрация на собеседование на выбранную дату."""
     element_name_part = "thePage:SiteTemplate:theForm:"
     link = browser.find_element(
         By.NAME,
@@ -348,8 +365,8 @@ def registration(browser):
     return "\n".join(info)
 
 
-def searching_free_date(browser, answers):
-    """Поиск свободных дат."""
+def searching_free_date(browser: WebDriver, answers: Dict) -> str:
+    """Поиск подходящей свободной даты."""
     try:
         dates = answers["dates"].split(" - ")
         first_date = date(*[int(d) for d in dates[0].split(".")][::-1])
@@ -379,8 +396,12 @@ def searching_free_date(browser, answers):
         return registration(browser)
 
 
-def first_appointment(browser, answers):
-
+def first_appointment(browser: WebDriver,
+                      answers: Dict
+                      ) -> Tuple[WebDriver, Dict]:
+    """Действия, которые выполняются только при
+    первичной записи на собеседование.
+    """
     # Выбор неиммиграционной визы (по умолчанию)
     browser.find_element(
         By.NAME, "j_id0:SiteTemplate:theForm:j_id176"
@@ -430,8 +451,10 @@ def first_appointment(browser, answers):
 
     browser, answers = status_selection(browser, answers)
 
+    return browser, answers
 
-def main(answers):
+
+def main(answers: Dict) -> str:
     browser = starting_browser()
     browser, answers = authorization(browser, answers)
 
