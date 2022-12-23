@@ -287,6 +287,25 @@ def reading_captcha_page(browser):
     return browser
 
 
+def getting_all_free_dates(browser):
+    free_dates = []
+    for _ in range(NUMBER_OF_MONTHS_TO_CHECK):
+        calendar_first_month = browser.find_element(
+            By.CLASS_NAME,
+            "ui-datepicker-group-first"
+        )
+        days = calendar_first_month.find_elements(By.TAG_NAME, "td")
+        for day in days:
+            if free_date := day.get_attribute("onclick"):
+                month, year = list(map(int, free_date.split(",")[1:3]))
+                checking_date = date(year, month + 1, int(day.text))
+                free_dates.append(checking_date.strftime("%d.%m.%Y"))
+        link = browser.find_element(By.CLASS_NAME, "ui-datepicker-next")
+        link.click()
+        waiting_new_page(link)
+    return free_dates
+
+
 def registration(browser):
     element_name_part = "thePage:SiteTemplate:theForm:"
     link = browser.find_element(
@@ -297,7 +316,9 @@ def registration(browser):
     waiting_new_page(link)
 
     # Отправка заявки на собеседование
-    browser.find_element(By.NAME, f"{element_name_part}addItem").click()
+    link = browser.find_element(By.NAME, f"{element_name_part}addItem")
+    link.click()
+    waiting_new_page(link)
 
     info_title = browser.find_element(By.CLASS_NAME, "apptSchedMsg").text
     info = [info_title]
@@ -327,76 +348,33 @@ def registration(browser):
     return "\n".join(info)
 
 
-def getting_all_free_dates(browser):
-    # TODO: чтобы не зависеть от языка (может не быть в выборе русского)
-    #  предлагаю просто разбирать календарную страницу как есть
-    #  и по номерам месяцев формировать дату (месяц в параметре onclick сидит)
-    free_dates = []
-    for _ in range(NUMBER_OF_MONTHS_TO_CHECK):
-        calendar_first_month = browser.find_element(
-            By.CLASS_NAME,
-            "ui-datepicker-group-first"
-        )
-        days = calendar_first_month.find_elements(By.TAG_NAME, "td")
-        for day in days:
-            if free_date := day.get_attribute("onclick"):
-                month, year = list(map(int, free_date.split(",")[1:3]))
-                checking_date = date(year, month, int(day.text))
-                free_dates.append(checking_date.strftime("%d.%m.%Y"))
-        link = browser.find_element(By.CLASS_NAME, "ui-datepicker-next")
-        link.click()
-        waiting_new_page(link)
-    return free_dates
-
-
 def searching_free_date(browser, answers):
     """Поиск свободных дат."""
     try:
-        months = [
-            "Январь",
-            "Февраль",
-            "Март",
-            "Апрель",
-            "Май",
-            "Июнь",
-            "Июль",
-            "Август",
-            "Сентябрь",
-            "Октябрь",
-            "Ноябрь",
-            "Декабрь",
-        ]
         dates = answers["dates"].split(" - ")
         first_date = date(*[int(d) for d in dates[0].split(".")][::-1])
         last_date = date(*[int(d) for d in dates[1].split(".")][::-1])
         earliest_date = ""
-        while True:
-            sleep(5)
+        for _ in range(NUMBER_OF_MONTHS_TO_CHECK):
             calendar_first_month = browser.find_element(
                 By.CLASS_NAME, "ui-datepicker-group-first"
             )
-            month, year = calendar_first_month.find_element(
-                By.CLASS_NAME, "ui-datepicker-header"
-            ).text.split(" ")
-            month = months.index(month.split("\n")[1]) + 1
-            year = int(year)
-            weeks = calendar_first_month.find_elements(By.TAG_NAME, "tr")
-            for week in weeks:
-                days = week.find_elements(By.TAG_NAME, "td")
-                for day in days:
-                    try:
-                        day.find_element(By.TAG_NAME, "a")
-                        checking_date = date(year, month, int(day.text))
-                        if not earliest_date:
-                            earliest_date = checking_date.strftime("%d.%m.%Y")
-                        if first_date <= checking_date <= last_date:
-                            day.click()
-                            return registration(browser)
-                        elif checking_date > last_date:
-                            return f"Нет подходящих дат. Самая ранняя свободная дата: {int(day.text)}.{month}.{year}"
-                    except (NoSuchElementException):
-                        pass
-            browser.find_element(By.CLASS_NAME, "ui-datepicker-next").click()
+            days = calendar_first_month.find_elements(By.TAG_NAME, "td")
+            for day in days:
+                if free_date := day.get_attribute("onclick"):
+                    month, year = list(map(int, free_date.split(",")[1:3]))
+                    checking_date = date(year, month + 1, int(day.text))
+                    print(checking_date.strftime("%d.%m.%Y"))
+                    if not earliest_date:
+                        earliest_date = checking_date.strftime("%d.%m.%Y")
+                    if first_date <= checking_date <= last_date:
+                        day.click()
+                        waiting_new_page(day)
+                        return registration(browser)
+            link = browser.find_element(By.CLASS_NAME, "ui-datepicker-next")
+            link.click()
+            waiting_new_page(link)
+        return f"Нет подходящих дат. Ранняя свободная дата: {earliest_date}"
     except KeyError:
         return registration(browser)
 
