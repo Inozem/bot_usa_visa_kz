@@ -9,6 +9,7 @@ from selenium.common.exceptions import (NoSuchElementException,
                                         StaleElementReferenceException)
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.ui import Select
 
 from rucaptcha import RuCaptcha
@@ -23,7 +24,7 @@ RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
 WEBDRIVER_ARGUMENT = os.getenv('WEBDRIVER_ARGUMENT')
 
 
-def waiting_new_page(link):
+def waiting_new_page(link: WebElement) -> None:
     """Ожидание обновления страницы."""
     waiting_update = True
     while waiting_update:
@@ -468,6 +469,8 @@ def main(answers: Dict) -> str:
         visa_info = browser.find_elements(By.CLASS_NAME, "tile")[0]
         city = visa_info.find_elements(By.CLASS_NAME, "stylizedLabel")[0].text
         answers["city"] = city
+    print(type(link))
+    sleep(60)
     link.click()
     waiting_new_page(link)
 
