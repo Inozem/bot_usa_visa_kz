@@ -20,6 +20,7 @@ TIME_OUT = 10  # Максимальное время ожидания загру
 MAX_ERROR_COUNT = 3  # Максимальное количество попыток при появлении ошибок
 NUMBER_OF_MONTHS_TO_CHECK = 13  # В скольких месяцах искать свободные даты
 RUCAPTCHA_API_KEY = os.getenv('RUCAPTCHA_API_KEY')
+WEBDRIVER_ARGUMENT = os.getenv('WEBDRIVER_ARGUMENT')
 
 
 def waiting_new_page(link):
@@ -37,28 +38,23 @@ def waiting_new_page(link):
 def starting_browser() -> WebDriver:
     """Настройка и запуск браузера."""
     options = webdriver.ChromeOptions()
-    # TODO: в конце - проверить работу в безоконном режиме (headless)
-    # TODO: аргументы браузера можно принимать через параметр функции
-    #  и при этом вычитывать их из переменных окружения,
-    #  чтобы локально проверять в обычном режиме, а на сервере запускать в headless
-    #  и при этом не трогать код ;)
-    options.add_argument("window-size=800,600")
+    options.add_argument(WEBDRIVER_ARGUMENT)
     browser = webdriver.Chrome(options=options)
     return browser
 
 
 def waiting_picture(browser: WebDriver, picture_id: str) -> None:
-    """Ожидание загрузки картинки с капчой"""
+    """Ожидание загрузки картинки с капчей."""
     for error_count in range(TIME_OUT):
+        sleep
         picture_size = browser.find_element(By.ID, picture_id).size
         if error_count >= TIME_OUT:
             raise Exception("Проблемы на стороне сервиса. "
                             "Капча. Не прогружается картинка.")
-        elif int(picture_size["height"]) <= 40:
+        elif int(picture_size["height"]) <= 65:
             sleep(1)
 
 
-# TODO: добавить везде аннотации типов
 def reading_captcha(picture: str) -> str:
     """Разгадывание капчи."""
     captcha = None
@@ -103,12 +99,12 @@ def authorization(browser: WebDriver,
     element_picture_id = f"{element_id_or_name_part}theId"
     waiting_picture(browser, element_picture_id)
     element_picture = browser.find_element(By.ID, element_picture_id)
-    picture_base64 = element_picture.screenshot_as_base64
+    picture_base64 = element_picture.get_attribute('src').split(',')[1]
     element_recaptcha_response_field = browser.find_element(
         By.ID,
         f"{element_id_or_name_part}recaptcha_response_field"
     )
-    sleep(10)  # element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
+    element_recaptcha_response_field.send_keys(reading_captcha(picture_base64))
 
     answers.update(login_data)
 
@@ -290,7 +286,7 @@ def reading_captcha_page(browser: WebDriver) -> WebDriver:
     element_picture_id = f"{element_id_or_name_part}captcha_image"
     waiting_picture(browser, element_picture_id)
     element_picture = browser.find_element(By.ID, element_picture_id)
-    picture_base64 = element_picture.screenshot_as_base64
+    picture_base64 = element_picture.get_attribute('src').split(',')[1]
     element_recaptcha_response_field = browser.find_element(
         By.ID,
         f"{element_id_or_name_part}recaptcha_response_field"
@@ -381,7 +377,6 @@ def searching_free_date(browser: WebDriver, answers: Dict) -> str:
                 if free_date := day.get_attribute("onclick"):
                     month, year = list(map(int, free_date.split(",")[1:3]))
                     checking_date = date(year, month + 1, int(day.text))
-                    print(checking_date.strftime("%d.%m.%Y"))
                     if not earliest_date:
                         earliest_date = checking_date.strftime("%d.%m.%Y")
                     if first_date <= checking_date <= last_date:
