@@ -81,7 +81,8 @@ def authorization(browser: WebDriver,
         "password": "Введите пароль: \n",
     }
     login_data = {
-        key: answers.get(key) or input(value) for key, value in required_params.items()
+        key: answers.get(key) or input(value)
+        for key, value in required_params.items()
     }
     browser.get("https://cgifederal.secure.force.com/")
     element_id_or_name_part = (
