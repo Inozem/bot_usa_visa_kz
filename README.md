@@ -16,7 +16,6 @@ CGIFEDERAL_PASSWORD = 'password'
 RUCAPTCHA_API_KEY='api_key'
 CGIFEDERAL_DATES='24.12.2023 - 06.01.2024'
 WEBDRIVER_ARGUMENT='--headless'
-
 ```
 
 * CGIFEDERAL_EMAIL и CGIFEDERAL_PASSWORD - это логин и пароль на сайте консульства.
